@@ -17,7 +17,8 @@ set(SOURCES
     src/Core/ShaderManager.cpp
     src/Core/Camera.cpp
     src/Grid/BaseGrid.cpp
-    src/Grid/FlatGrid.cpp
+    src/Grid/TerrainGrid.cpp
+    src/Grid/GridMesh.cpp
 )
 
 # Create executable

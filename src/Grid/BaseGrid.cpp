@@ -1,28 +1,36 @@
 #include "BaseGrid.h"
+#include "GridMesh.h"
 #include <cassert>
 
-// Add constructor and destructor implementations
-BaseGrid::BaseGrid() {}
+// Constructor and destructor implementations
+BaseGrid::BaseGrid() : m_gridMesh(nullptr) {}
 
-BaseGrid::~BaseGrid() {}
+BaseGrid::~BaseGrid() {
+    if (m_gridMesh) {
+        delete m_gridMesh;
+        m_gridMesh = nullptr;
+    }
+}
 
-void BaseGrid::Init(int width, int depth, float worldScale)
+void BaseGrid::Init(int width, int depth, float worldScale, float textureScale)
 {
     m_width = width;
     m_depth = depth;
     m_worldScale = worldScale;
+    m_textureScale = textureScale;
+    
+    // Create a new mesh if needed
+    if (!m_gridMesh) {
+        m_gridMesh = new GridMesh();
+    }
 
-    // LoadHeightMap("heightmap.save");
-
-    m_flatGrid.CreateFlatGrid(width, depth, this);
+    // Initialize the mesh
+    m_gridMesh->CreateMesh(width, depth, this);
 }
 
 void BaseGrid::Render()
 {
-    m_flatGrid.Render();
-}
-
-void BaseGrid::LoadHeightMap(const char* filename)
-{
-    // Load the height map from the file
+    if (m_gridMesh) {
+        m_gridMesh->Render();
+    }
 }

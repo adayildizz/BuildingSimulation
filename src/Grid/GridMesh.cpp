@@ -1,19 +1,23 @@
-#include "FlatGrid.h"
+#include "GridMesh.h"
 #include "BaseGrid.h"
 #include <cassert>
 
-FlatGrid::FlatGrid()
+GridMesh::GridMesh()
 {
 }
 
-FlatGrid::~FlatGrid()
+GridMesh::~GridMesh()
 {
+    // Cleanup OpenGL resources
+    glDeleteVertexArrays(1, &m_vao);
+    glDeleteBuffers(1, &m_vb);
+    glDeleteBuffers(1, &m_ib);
 }
 
-void FlatGrid::CreateFlatGrid(int Width, int Depth, const BaseGrid* baseGrid)
+void GridMesh::CreateMesh(int width, int depth, const BaseGrid* baseGrid)
 {
-    m_width = Width;
-    m_depth = Depth;
+    m_width = width;
+    m_depth = depth;
 
     // Create OpenGL state
     CreateGLState();
@@ -26,7 +30,7 @@ void FlatGrid::CreateFlatGrid(int Width, int Depth, const BaseGrid* baseGrid)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
-void FlatGrid::CreateGLState()
+void GridMesh::CreateGLState()
 {
     // Create vertex array object
     glGenVertexArrays(1, &m_vao);
@@ -41,14 +45,21 @@ void FlatGrid::CreateGLState()
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ib);
     
     int POS_LOC = 0;
+    int TEX_LOC = 1;
     size_t NumFloats = 0;
+    
     // Enable position attribute
     glEnableVertexAttribArray(POS_LOC);
     glVertexAttribPointer(POS_LOC, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const void*)(NumFloats * sizeof(float)));
     NumFloats += 3;
+    
+    // Enable texture coordinate attribute
+    glEnableVertexAttribArray(TEX_LOC);
+    glVertexAttribPointer(TEX_LOC, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (const void*)(NumFloats * sizeof(float)));
+    NumFloats += 2;
 }
 
-void FlatGrid::PopulateBuffers(const BaseGrid* baseGrid)
+void GridMesh::PopulateBuffers(const BaseGrid* baseGrid)
 {
     // Create vertices
     std::vector<Vertex> vertices;
@@ -68,7 +79,7 @@ void FlatGrid::PopulateBuffers(const BaseGrid* baseGrid)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices[0]) * indices.size(), &indices[0], GL_STATIC_DRAW);
 }
 
-void FlatGrid::InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& vertices)
+void GridMesh::InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& vertices)
 {
     int index = 0;
     
@@ -83,13 +94,22 @@ void FlatGrid::InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& verti
     assert(index == (int)vertices.size());
 }
 
-void FlatGrid::Vertex::InitVertex(const BaseGrid* baseGrid, int x, int z)
+void GridMesh::Vertex::InitVertex(const BaseGrid* baseGrid, int x, int z)
 {
-    // Flat grid at y=0
-    position = vec3(x * baseGrid->GetWorldScale(), 0.0f, z * baseGrid->GetWorldScale());
+    // Get the height from the grid at this position
+    float y = baseGrid->GetHeight(x, z);
+    
+    // Set the position using the world scale and height
+    position = vec3(x * baseGrid->GetWorldScale(), y, z * baseGrid->GetWorldScale());
+    
+    // Set texture coordinates (normalized 0-1)
+    texCoord = vec2(
+        static_cast<float>(x) / (baseGrid->GetWidth() - 1) * baseGrid->GetTextureScale(),
+        static_cast<float>(z) / (baseGrid->GetDepth() - 1) * baseGrid->GetTextureScale()
+    );
 }
 
-void FlatGrid::InitIndices(std::vector<unsigned int>& indices)
+void GridMesh::InitIndices(std::vector<unsigned int>& indices)
 {
     int index = 0;
     
@@ -121,9 +141,9 @@ void FlatGrid::InitIndices(std::vector<unsigned int>& indices)
     assert(index == (int)indices.size());
 }
 
-void FlatGrid::Render()
+void GridMesh::Render()
 {
     glBindVertexArray(m_vao);
     glDrawElements(GL_TRIANGLES, (m_width - 1) * (m_depth - 1) * 6, GL_UNSIGNED_INT, NULL);
     glBindVertexArray(0);
-}
+} 

@@ -1,9 +1,11 @@
 #version 410
 
-out vec4 fragColor;
-in vec4 color;
+layout(location = 0) out vec4 outputColor;
+
+in vec4 fragmentColor;
+in vec2 fragmentTexCoord;
 
 void main()
 {
-     fragColor = color;
+     outputColor = fragmentColor;
 }

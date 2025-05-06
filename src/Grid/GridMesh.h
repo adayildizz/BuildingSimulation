@@ -5,19 +5,19 @@
 
 class BaseGrid;
 
-class FlatGrid {
+class GridMesh {
 public:
-    FlatGrid();
-    ~FlatGrid();
+    GridMesh();
+    ~GridMesh();
 
-    void CreateFlatGrid(int Width, int Depth, const BaseGrid* baseGrid);
+    void CreateMesh(int width, int depth, const BaseGrid* baseGrid);
     void Render();
 
 private:
-
     // Structure for vertices
     struct Vertex {
         vec3 position;
+        vec2 texCoord;
         
         void InitVertex(const BaseGrid* baseGrid, int x, int z);
     };
@@ -40,6 +40,4 @@ private:
     GLuint m_vao;
     GLuint m_vb;
     GLuint m_ib;
-};
-    
-    
+}; 

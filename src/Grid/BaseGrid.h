@@ -1,26 +1,36 @@
 #pragma once
 
 #include "../../include/Angel.h"
-#include "../Core/Shader.h"
-#include "../Core/Camera.h"
-#include "FlatGrid.h"
 #include <vector>
 
+// Forward declarations
+class GridMesh;
+
+// Abstract interface for grid implementations
 class BaseGrid {
 public:
     BaseGrid();
-    ~BaseGrid();
+    virtual ~BaseGrid();
 
-    void Init(int width, int depth, float worldScale);
-    void Render();    
-    float GetWorldScale() const { return m_worldScale; }
+    virtual void Init(int width, int depth, float worldScale, float textureScale);
+    virtual void Render();
     
-private:
-    void LoadHeightMap(const char* filename);
+    // Accessors
+    float GetWorldScale() const { return m_worldScale; }
+    float GetTextureScale() const { return m_textureScale; }
+    int GetWidth() const { return m_width; }
+    int GetDepth() const { return m_depth; }
+    
+    // Pure virtual method to get height at a position
+    virtual float GetHeight(int x, int z) const = 0;
 
+protected:
     // Grid dimensions
     int m_width = 0;
     int m_depth = 0;
     float m_worldScale = 1.0f;
-    FlatGrid m_flatGrid;
+    float m_textureScale = 1.0f;
+    
+    // Grid mesh for rendering
+    GridMesh* m_gridMesh = nullptr;
 };

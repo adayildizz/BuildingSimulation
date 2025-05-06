@@ -2,10 +2,12 @@
 #include "Core/Shader.h"
 #include "Core/ShaderManager.h"
 #include "Core/Camera.h"
-#include "Grid/BaseGrid.h"
+#include "Grid/TerrainGrid.h"
 #include "../include/Angel.h"
 #include <iostream>
 #include <memory>
+#include <cstdlib> // Added for srand
+#include <ctime>   // Added for time
 
 // Constants
 const int WINDOW_WIDTH = 1920;
@@ -49,8 +51,10 @@ public:
         mat4 cameraMatrix = camera->GetViewProjMatrix();
         shader->use();
         shader->setUniform("camMatrix", cameraMatrix);
+        shader->setUniform("gMinHeight", 0.0f);
+        shader->setUniform("gMaxHeight", 50.0f); // Assuming default maxMountainHeight from SetCrater
 
-        grid.Render();
+        grid->Render();
     }
 
     void KeyboardCB(int key, int action)
@@ -122,8 +126,10 @@ private:
 
     void InitCamera()
     {
-        vec3 cameraPos = vec3(0.0f, 200.0f, 0.0f);
-        vec3 cameraTarget = vec3(0.0f, 0.0f, 1.0f);
+        // Start slightly higher to see the crater mountains
+        vec3 cameraPos = vec3(250.0f, 60.0f, 250.0f); 
+        // Point slightly downwards initially
+        vec3 cameraTarget = vec3(0.0f, -0.2f, 1.0f); 
         vec3 cameraUp = vec3(0.0f, 1.0f, 0.0f);
         
         float fov = 90.0f;
@@ -150,16 +156,22 @@ private:
     void InitGrid()
     {
         float worldScale = 5.0f;
-        grid.Init(GRID_SIZE, GRID_SIZE, worldScale);
+        float textureScale = 10.0f;
+        
+        // Create grid
+        grid = std::make_unique<TerrainGrid>();
+        grid->Init(GRID_SIZE, GRID_SIZE, worldScale, textureScale, 
+                  TerrainGrid::TerrainType::CRATER);        
     }
     
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
     std::shared_ptr<Shader> shader;
-    BaseGrid grid;
+    
+    // Grid implementation
+    std::unique_ptr<TerrainGrid> grid;
     bool m_isWireframe = false;
-
 };
 
 // Global app instance
@@ -190,6 +202,9 @@ static void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 
 int main(int argc, char** argv)
 {
+    // Seed random number generator
+    srand(time(0)); 
+
     g_app = new GridDemo();
     g_app->Init();
 
