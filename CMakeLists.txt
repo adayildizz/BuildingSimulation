@@ -16,9 +16,12 @@ set(SOURCES
     src/Core/Shader.cpp
     src/Core/ShaderManager.cpp
     src/Core/Camera.cpp
+    src/Core/Texture.cpp
+    src/Core/stb_image_impl.cpp
     src/Grid/BaseGrid.cpp
     src/Grid/TerrainGrid.cpp
     src/Grid/GridMesh.cpp
+    src/Grid/TerrainGenerator.cpp
 )
 
 # Create executable
@@ -55,3 +58,12 @@ endforeach()
 
 # Create shaders directory in build directory
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
+
+# Copy resources directory recursively to build directory
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/resources
+    ${CMAKE_BINARY_DIR}/resources
+    COMMENT "Copying resources to build directory"
+)

@@ -1,57 +1,44 @@
 #pragma once
 
 #include "BaseGrid.h"
+#include "TerrainGenerator.h"
 #include <vector>
-#include <functional>
 
 // Terrain grid implementation with height mapping
 class TerrainGrid : public BaseGrid {
 public:
-    // Type definition for height generation functions
-    using HeightFunction = std::function<float(int x, int z)>;
-    
-    // Enum for terrain type
-    enum class TerrainType {
-        FLAT,
-        CRATER
-    };
+    // Use TerrainGenerator's TerrainType and TerrainLayerInfo
+    using TerrainType = TerrainGenerator::TerrainType;
+    using TerrainLayerInfo = TerrainGenerator::TerrainLayerInfo;
     
     TerrainGrid();
     virtual ~TerrainGrid();
     
-    // Override Init to create heightmap, with terrain type parameter
+    // Init will now take parameters for the TerrainGenerator
     virtual void Init(int width, int depth, float worldScale, float textureScale, 
                      TerrainType terrainType = TerrainType::FLAT,
-                     float maxMountainHeight = 200.0f, float craterRadiusRatio = 0.4f);
+                     float genParam1 = 200.0f, // Generic parameter 1 for generator (e.g. max height)
+                     float genParam2 = 0.2f,   // Generic parameter 2 for generator (e.g. radius ratio)
+                     int genIterations = 100,   // Generic iterations for generator
+                     float genFilterFactor = 0.5f, // Generic filter factor
+                     float genFaultDisplacementScale = 0.05f); // Generic fault displacement scale
     
     // Implementation of the pure virtual method from BaseGrid
     virtual float GetHeight(int x, int z) const override;
-    
-    // Set a custom height function
-    void SetHeightFunction(HeightFunction func);
-    
-    // Load heightmap from file
-    bool LoadHeightMap(const char* filename);
-    
-    // Save heightmap to file
-    bool SaveHeightMap(const char* filename) const;
-    
-    // Set to flat terrain (convenience method)
-    void SetFlat();
-    
-    // Set terrain to a crater shape with noise
-    void SetCrater(float maxMountainHeight = 50.0f, float craterRadiusRatio = 0.4f);
+
+    // Getters for terrain properties
+    TerrainType GetTerrainType() const;
+    const TerrainLayerInfo& GetLayerInfo() const;
+    float GetMinHeight() const; // Will need to calculate this
+    float GetMaxHeight() const; // Will need to calculate this
     
 private:
-    // Generate heights using the current height function
-    void GenerateHeights();
-    
-    // Default height generation function
-    static float DefaultHeightFunc(int x, int z);
-    
     // Heightmap data
     std::vector<float> m_heightMap;
-    
-    // Current height generation function
-    HeightFunction m_heightFunc;
+    TerrainType m_terrainType;
+    TerrainLayerInfo m_layerInfo;
+    float m_minHeight;
+    float m_maxHeight;
+
+    void CalculateMinMaxHeights(); // Helper to calculate and store min/max
 }; 

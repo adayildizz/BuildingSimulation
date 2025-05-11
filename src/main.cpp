@@ -3,16 +3,19 @@
 #include "Core/ShaderManager.h"
 #include "Core/Camera.h"
 #include "Grid/TerrainGrid.h"
+#include "Core/Texture.h"
 #include "../include/Angel.h"
 #include <iostream>
 #include <memory>
+#include <vector> // For std::vector to hold texture names and heights temporarily
+#include <string> // For std::string
 #include <cstdlib> // Added for srand
 #include <ctime>   // Added for time
 
 // Constants
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
-const int GRID_SIZE = 100; // Size of the grid
+const int GRID_SIZE = 250; // Size of the grid
 
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -48,11 +51,22 @@ public:
 
     void RenderScene()
     {
-        mat4 cameraMatrix = camera->GetViewProjMatrix();
+        // Get the view projection matrix
+        mat4 cameraMatrix = camera->GetViewProjMatrix(); 
+
+        // Use the shader
         shader->use();
-        shader->setUniform("camMatrix", cameraMatrix);
-        shader->setUniform("gMinHeight", 0.0f);
-        shader->setUniform("gMaxHeight", 50.0f); // Assuming default maxMountainHeight from SetCrater
+        shader->setUniform("gVP", cameraMatrix);
+        shader->setUniform("gMinHeight", m_minTerrainHeight);
+        shader->setUniform("gMaxHeight", m_maxTerrainHeight);
+
+        for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
+            if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
+                m_terrainTextures[i]->Bind(GL_TEXTURE0 + i);
+                shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
+                shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
+            }
+        }
 
         grid->Render();
     }
@@ -127,12 +141,12 @@ private:
     void InitCamera()
     {
         // Start slightly higher to see the crater mountains
-        vec3 cameraPos = vec3(250.0f, 60.0f, 250.0f); 
+        vec3 cameraPos = vec3(625.0f, 150.0f, 625.0f); // Increased Y for better view of crater
         // Point slightly downwards initially
-        vec3 cameraTarget = vec3(0.0f, -0.2f, 1.0f); 
+        vec3 cameraTarget = vec3(0.0f, -0.3f, 1.0f); // Adjusted target for new camera height
         vec3 cameraUp = vec3(0.0f, 1.0f, 0.0f);
         
-        float fov = 90.0f;
+        float fov = 45.0f;
         float zNear = 0.1f;
         float zFar = 2000.0f;
         PersProjInfo persProjInfo = {fov, WINDOW_WIDTH, WINDOW_HEIGHT, zNear, zFar};
@@ -156,22 +170,95 @@ private:
     void InitGrid()
     {
         float worldScale = 5.0f;
-        float textureScale = 10.0f;
+        float textureScale = 10.0f; 
         
-        // Create grid
         grid = std::make_unique<TerrainGrid>();
+        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::VOLCANIC_CALDERA;
+        float maxEdgeHeightForGenerator = 120.0f; 
+        float centralFlatRatioForGenerator = 0.25f;
+
         grid->Init(GRID_SIZE, GRID_SIZE, worldScale, textureScale, 
-                  TerrainGrid::TerrainType::CRATER);        
+                  terrainType, maxEdgeHeightForGenerator, centralFlatRatioForGenerator);
+
+        // Update min/max terrain heights from the grid itself
+        m_minTerrainHeight = grid->GetMinHeight();
+        m_maxTerrainHeight = grid->GetMaxHeight();
+                  
+        const auto& layerPercentages = grid->GetLayerInfo();
+
+        // Define texture paths - these could be mapped based on terrainType in a more advanced system
+        std::vector<std::string> texturePaths = {
+            "resources/textures/grass.jpg", // Corresponds to layer defined by layer1_percentage
+            "resources/textures/dirt.jpg",  // Corresponds to layer defined by layer2_percentage
+            "resources/textures/rock.jpg",  // Corresponds to layer defined by layer3_percentage
+            "resources/textures/snow.jpg"   // Corresponds to the final layer up to maxHeight
+        };
+
+        m_terrainTextures.clear();
+        m_terrainTextureTransitionHeights.clear();
+
+        float heightRange = m_maxTerrainHeight - m_minTerrainHeight;
+        // Handle flat terrain case where heightRange might be 0
+        if (heightRange <= 1e-5f) { // Use a small epsilon for float comparison
+             // For flat terrain, transitions might not make sense or might be set to 0 or max.
+             // Based on layerPercentages, if they are 0 for flat, all transitions will be m_minTerrainHeight.
+             // If we want distinct layers even on "flat" terrain (e.g. different soil types based on tiny variations not in heightmap)
+             // this logic would need adjustment. For now, proceed with calculation.
+             // If min=max, all transitions will be equal to minHeight (or maxHeight).
+             // Shader should gracefully handle this (e.g. use first texture).
+             if (heightRange == 0.0f) heightRange = 1.0f; // Avoid division by zero if percentages are non-zero
+        }
+
+
+        // Calculate absolute transition heights
+        // These are the ENDING heights for each layer/texture
+        float transitionHeight1 = m_minTerrainHeight + heightRange * layerPercentages.layer1_percentage;
+        float transitionHeight2 = m_minTerrainHeight + heightRange * layerPercentages.layer2_percentage;
+        float transitionHeight3 = m_minTerrainHeight + heightRange * layerPercentages.layer3_percentage;
+        float transitionHeight4 = m_maxTerrainHeight; // The last layer's "transition" is the max height
+
+        std::vector<float> calculatedTransitions = {
+            transitionHeight1, 
+            transitionHeight2, 
+            transitionHeight3, 
+            transitionHeight4
+        };
+        
+        // Load textures and store them with their transition heights
+        for (size_t i = 0; i < texturePaths.size(); ++i) {
+            if (i >= MAX_SHADER_TEXTURE_LAYERS) { // Ensure we don't exceed shader's capacity
+                std::cout << "Warning: Exceeded max shader texture layers. Only loading " << MAX_SHADER_TEXTURE_LAYERS << std::endl;
+                break;
+            }
+            auto tex = std::make_shared<Texture>(GL_TEXTURE_2D, texturePaths[i]);
+            if (tex->Load()) {
+                m_terrainTextures.push_back(tex);
+                m_terrainTextureTransitionHeights.push_back(calculatedTransitions[i]);
+                std::cout << "Loaded texture " << texturePaths[i] << " with transition height " << calculatedTransitions[i] << std::endl;
+            } else {
+                std::cerr << "Failed to load terrain texture: " << texturePaths[i] << std::endl;
+                // Optionally, push a placeholder or skip to keep vectors aligned if shader expects all slots
+            }
+        }
+
+        std::cout << "Terrain textures setup for GPU blending. Count: " << m_terrainTextures.size() << std::endl;
+        if (m_terrainTextures.empty()) {
+             std::cerr << "CRITICAL: No terrain textures were loaded!" << std::endl;
+        }
     }
     
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
     std::shared_ptr<Shader> shader;
-    
-    // Grid implementation
     std::unique_ptr<TerrainGrid> grid;
     bool m_isWireframe = false;
+    float m_minTerrainHeight = 0.0f;
+    float m_maxTerrainHeight = 1.0f;
+    
+    std::vector<std::shared_ptr<Texture>> m_terrainTextures;
+    std::vector<float> m_terrainTextureTransitionHeights;
+    static const int MAX_SHADER_TEXTURE_LAYERS = 4; // Max layers shader supports
 };
 
 // Global app instance
