@@ -20,6 +20,7 @@ Thumbs.db
 
 # Dependencies
 include/GLFW/
+external/
 
 # CMake generated files
 CMakeFiles/
