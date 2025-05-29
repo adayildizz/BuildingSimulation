@@ -5,7 +5,7 @@ bin/
 obj/
 
 # IDE specific files
-.vscode/*
+.vscode/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
@@ -53,3 +53,4 @@ Makefile
 *.exe
 *.out
 *.app 
+
