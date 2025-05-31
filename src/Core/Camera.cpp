@@ -8,10 +8,11 @@ Camera::Camera(const PersProjInfo& persPositionInfo, const vec3& Pos, const vec3
     InitCamera(persPositionInfo, Pos, Target, Up);
 }
 
+
 void Camera::InitCamera(const PersProjInfo& persPositionInfo, const vec3& Pos, const vec3& Target, const vec3& Up)
 {
     m_persProjInfo = persPositionInfo;
-    m_projMatrix = Perspective(m_persProjInfo.FOV, m_persProjInfo.Height / m_persProjInfo.Width, m_persProjInfo.zNear, m_persProjInfo.zFar);
+    m_projMatrix = Perspective(m_persProjInfo.FOV, m_persProjInfo.Height/ m_persProjInfo.Width, m_persProjInfo.zNear, m_persProjInfo.zFar);
 
     m_windowHeight = (int)m_persProjInfo.Height;
     m_windowWidth = (int)m_persProjInfo.Width;

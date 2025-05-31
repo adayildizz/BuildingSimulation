@@ -22,7 +22,11 @@ set(SOURCES
     src/Grid/TerrainGrid.cpp
     src/Grid/GridMesh.cpp
     src/Grid/TerrainGenerator.cpp
+    src/ObjectLoader/ObjectLoader.cpp
 )
+
+set(ASSIMP_SRC_DIR ${CMAKE_SOURCE_DIR}/include/assimp)
+set(ASSIMP_BUILD_DIR ${ASSIMP_SRC_DIR}/build)
 
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -31,6 +35,8 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${OPENGL_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/include
+    ${ASSIMP_SRC_DIR}/include      # Assimp's source include directory
+    ${ASSIMP_BUILD_DIR}/include   # Assimp's build include directory (for generated headers like config.h)
     ${CMAKE_SOURCE_DIR}/src
 )
 
@@ -39,10 +45,16 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     GL_SILENCE_DEPRECATION
 )
 
+target_link_directories(${PROJECT_NAME} PRIVATE
+    ${ASSIMP_BUILD_DIR}/lib         # Assimp built static/shared libs
+)
+
+
 # Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenGL::GL
     glfw
+    ${ASSIMP_BUILD_DIR}/bin/libassimp.dylib
 )
 
 # Copy shader files to build directory

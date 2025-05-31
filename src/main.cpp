@@ -10,8 +10,16 @@
 #include <vector> // For std::vector to hold texture names and heights temporarily
 #include <string> // For std::string
 #include <cstdlib> // Added for srand
-#include <ctime>   // Added for time
+#include <ctime> 
+#include "ObjectLoader/ObjectLoader.h"  // Added for time
 
+
+//global mouse pos
+double mouseX = 0.0f;
+double mouseY = 0.0f;
+float objectPosX = 500.0f;
+float ObjectPosY = 10.0f;
+float ObjectPosZ = 600.0f;
 // Constants
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
@@ -22,7 +30,11 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
 static void CursorPosCallback(GLFWwindow* window, double x, double y);
 static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode);
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-
+// Program ID
+GLuint program;
+GLuint ModelView, Projection;
+//Objects
+ObjectLoader* objectLoader;
 // Grid demo application
 class GridDemo
 {
@@ -32,11 +44,13 @@ public:
 
     void Init()
     {
+        
         CreateWindow();
         InitCallbacks();
         InitCamera();
         InitShader();
         InitGrid();
+        InitObjects();
     }
 
     void Run()
@@ -51,24 +65,79 @@ public:
 
     void RenderScene()
     {
-        // Get the view projection matrix
-        mat4 cameraMatrix = camera->GetViewProjMatrix(); 
+        // Get the combined view-projection matrix from the camera once per frame
+        mat4 viewProjMatrix = camera->GetViewProjMatrix(); 
 
-        // Use the shader
-        shader->use();
-        shader->setUniform("gVP", cameraMatrix);
-        shader->setUniform("gMinHeight", m_minTerrainHeight);
-        shader->setUniform("gMaxHeight", m_maxTerrainHeight);
-
-        for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
-            if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
-                m_terrainTextures[i]->Bind(GL_TEXTURE0 + i);
-                shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
-                shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
+        // Terrain Rendering
+        if (terrainShader) { 
+            terrainShader->use();
+            // Set the View-Projection matrix for the terrain
+            terrainShader->setUniform("gVP", viewProjMatrix); 
+            
+            terrainShader->setUniform("gMinHeight", m_minTerrainHeight);
+            terrainShader->setUniform("gMaxHeight", m_maxTerrainHeight);
+            
+            for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
+                if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
+                    m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
+                    terrainShader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
+                    terrainShader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
+                }
             }
         }
+        else{
+            std::cout <<"terrain shader is missing." << std::endl;
+        }
 
-        grid->Render();
+        grid->Render(); // Render the terrain grid
+        
+            
+        // Object Rendering
+        std::shared_ptr<Shader> currentObjectShader = ShaderManager::getInstance().getShader("Object");
+        
+        if (!currentObjectShader) {
+            std::cerr << "Error: Object shader not found in RenderScene!" << std::endl;
+        } else {
+            currentObjectShader->use(); // Activate the object's shader program
+
+            // Define a fixed world position for the object - moved further away
+
+            vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ); 
+            float scale = 100.0f;
+            float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
+            float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
+
+            normX *= scale;
+            normY *= scale;
+            
+            mat4 translation_from_cursor = Translate(fixedObjectWorldPos.x + normX, fixedObjectWorldPos.y,fixedObjectWorldPos.z + normY);
+            
+
+            
+
+            mat4 objectScaleMatrix = Scale(5.0f,5.0f, 5.0f);
+            mat4 objectModelMatrix = translation_from_cursor*objectScaleMatrix;
+            // mat4 objectRotateMatrix = RotateY(45.0f); // Example: Rotate 45 degrees around Y
+            // mat4 objectModelMatrix = objectTranslateMatrix * objectRotateMatrix * objectScaleMatrix;
+            //mat4 objectModelMatrix = translation_from_cursor * objectScaleMatrix;
+            
+            // 2. Get the camera's View and Projection matrices
+            
+            mat4 viewMatrix = camera->GetViewMatrix(); 
+
+            //Set the projection for the objects shader
+            mat4 projMatrix = camera->GetProjMatrix(); 
+            GLuint Projection = glGetUniformLocation(currentObjectShader->getProgramID(),"Projection");
+            glUniformMatrix4fv(Projection,1,GL_TRUE, projMatrix); // Use this instead of the one from top of function for clarity here
+
+            // modelview matrix
+            mat4 mvpMatrix = viewMatrix * objectModelMatrix; 
+
+            if (objectLoader) { // Ensure objectLoader is not null
+                // ObjectLoader::render will now just bind VAO and draw, not set matrix uniforms
+                objectLoader->render(mvpMatrix); // mvpMatrix, objectModelMatrix potentially unused by render now
+            }
+        }
     }
 
     void KeyboardCB(int key, int action)
@@ -92,7 +161,10 @@ public:
                 case GLFW_KEY_C:
                     camera->Print();
                     break;
+                    
             }
+
+            std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
         }
         
         camera->OnKeyboard(key);
@@ -138,17 +210,42 @@ private:
         glfwSetCursorPos(window->getHandle(), WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
     }
 
+    void InitObjects(){
+        std::cout << "loading objects.." << std::endl;
+      
+        // Ensure the "Object" shader is loaded and get its program ID
+        std::shared_ptr<Shader> objShader = ShaderManager::getInstance().getShader("Object");
+        if (!objShader) {
+            std::cerr << "Error: Object shader not found during InitObjects!" << std::endl;
+            return; // Or handle error appropriately
+        }
+        GLuint objectShaderProgramID = objShader->getProgramID();
+
+        objectLoader = new ObjectLoader(objectShaderProgramID); 
+        if (objectLoader) {
+            // Load only mesh 4 (assuming this is the main house model)
+            std::vector<unsigned int> meshesToLoad = {4};
+            if (!objectLoader->load("../Objects/model.obj", meshesToLoad)) {
+                std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
+            } else {
+                std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
+            }
+        } else {
+            std::cerr << "Failed to create ObjectLoader instance." << std::endl;
+        }
+    }
+
     void InitCamera()
     {
         // Start slightly higher to see the crater mountains
         vec3 cameraPos = vec3(625.0f, 150.0f, 625.0f); // Increased Y for better view of crater
         // Point slightly downwards initially
-        vec3 cameraTarget = vec3(0.0f, -0.3f, 1.0f); // Adjusted target for new camera height
+        vec3 cameraTarget = vec3(0.0f, -0.3f, 1.0f); // TargetAdjusted target for new camera height
         vec3 cameraUp = vec3(0.0f, 1.0f, 0.0f);
         
         float fov = 45.0f;
-        float zNear = 0.1f;
-        float zFar = 2000.0f;
+        float zNear = 1.0f; // Changed zNear back to 0.1f
+        float zFar = 1000.0f;
         PersProjInfo persProjInfo = {fov, WINDOW_WIDTH, WINDOW_HEIGHT, zNear, zFar};
 
         camera = std::make_unique<Camera>(persProjInfo, cameraPos, cameraTarget, cameraUp);
@@ -157,14 +254,26 @@ private:
     void InitShader()
     {
         auto& shaderManager = ShaderManager::getInstance();
-        shader = shaderManager.loadShader("basic", 
-                                         "shaders/vshader.glsl", 
-                                         "shaders/fshader.glsl");
         
-        if (!shader) {
-            std::cerr << "Failed to load shader" << std::endl;
+        // Load terrain shader
+        terrainShader = shaderManager.loadShader("terrainShader", 
+                                             "shaders/vshader.glsl", 
+                                             "shaders/fshader.glsl");
+        if (!terrainShader) {
+            std::cerr << "Failed to load terrain shader (shaders/vshader.glsl, shaders/fshader.glsl)" << std::endl;
             exit(-1);
         }
+
+        // Load object shader - Corrected paths
+        objectShader = shaderManager.loadShader("Object", // Name for ShaderManager
+                                             "shaders/vshader2.glsl", 
+                                             "shaders/fshader2.glsl");
+        if (!objectShader) {
+            std::cerr << "Critical: Failed to load object shader (shaders/vshader2.glsl, shaders/fshader2.glsl). Please ensure these files exist in the 'build/shaders' directory. Exiting." << std::endl;
+            exit(-1); 
+        }
+        program = objectShader->getProgramID();
+        
     }
 
     void InitGrid()
@@ -250,7 +359,8 @@ private:
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
-    std::shared_ptr<Shader> shader;
+    std::shared_ptr<Shader> terrainShader; // Renamed from shader
+    std::shared_ptr<Shader> objectShader;  // For loaded objects
     std::unique_ptr<TerrainGrid> grid;
     bool m_isWireframe = false;
     float m_minTerrainHeight = 0.0f;
@@ -271,7 +381,9 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
 }
 
 static void CursorPosCallback(GLFWwindow* window, double x, double y)
-{
+{  
+    mouseX=x;
+    mouseY=y;
     g_app->PassiveMouseCB((int)x, (int)y);
 }
 
@@ -287,6 +399,8 @@ static void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
     g_app->ResizeCB(width, height);
 }
 
+
+
 int main(int argc, char** argv)
 {
     // Seed random number generator
@@ -295,11 +409,12 @@ int main(int argc, char** argv)
     g_app = new GridDemo();
     g_app->Init();
 
+    
     // Set up OpenGL state
     glClearColor(0.529f, 0.808f, 0.922f, 1.0f); // Sky blue color
-    glFrontFace(GL_CCW);
-    glCullFace(GL_BACK);
-    glEnable(GL_CULL_FACE);
+    //glFrontFace(GL_CCW);
+    //glCullFace(GL_BACK);
+    //glEnable(GL_CULL_FACE);
     glEnable(GL_DEPTH_TEST);
 
     g_app->Run();
