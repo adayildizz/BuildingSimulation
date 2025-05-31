@@ -295,6 +295,8 @@ mat4 Camera::GetViewProjMatrix() const
     return m_projMatrix * viewMatrix;
 }
 
+vec3 Camera::GetPosition() const { return m_pos; }
+
 mat4 Camera::GetViewPortMatrix() const
 {
     // Calculate half window dimensions

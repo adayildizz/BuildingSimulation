@@ -4,7 +4,8 @@
 #include "Core/Camera.h"
 #include "Grid/TerrainGrid.h"
 #include "Core/Texture.h"
-#include "light.h" // Include your Light class header
+#include "light.h"
+#include "Material.h"
 #include "Angel.h"
 #include <iostream>
 #include <memory>
@@ -24,6 +25,22 @@ static void CursorPosCallback(GLFWwindow* window, double x, double y);
 static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode);
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
+// Material pointer
+std::unique_ptr<Material> m_terrainMaterial;
+float m_timeOfDay = 0.0f;           // Current time, progresses from 0 upwards
+float m_dayCycleSpeed = 0.05f;    // How fast m_timeOfDay increases (adjust for desired speed)
+
+// Properties for SUNLIGHT (Daytime)
+vec3 m_sunDayColor = vec3(1.0f, 1.0f, 0.95f); // Bright, slightly warm white
+GLfloat m_sunDayAmbientIntensity = 0.3f;
+GLfloat m_sunDayDiffuseIntensity = 0.85f;
+
+// Properties for MOONLIGHT or very dim ambient (Nighttime)
+vec3 m_moonNightColor = vec3(0.05f, 0.05f, 0.15f); // Very dim, cool bluish
+GLfloat m_moonNightAmbientIntensity = 0.05f;
+GLfloat m_moonNightDiffuseIntensity = 0.0f;  // Moonlight often has minimal direct diffuse
+
+
 // Grid demo application
 class GridDemo
 {
@@ -36,16 +53,28 @@ public:
         CreateWindow();
         InitCallbacks();
         InitCamera();
+        InitMaterial();
         InitShader();
         InitGrid();
-        InitLight(); // Initialize the light here
+        InitLight();
     }
 
     void Run()
     {
+        static double lastFrameTime = glfwGetTime(); // Initialize when Run() is first called
+
         while (!window->shouldClose()) {
+            double currentFrameTime = glfwGetTime();
+            float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
+            lastFrameTime = currentFrameTime;
+
+            // --- UPDATE TIME OF DAY ---
+            m_timeOfDay += deltaTime * m_dayCycleSpeed;
+            // Optional: Keep m_timeOfDay from growing infinitely (e.g., wrap around every 2*PI for a full cycle)
+            // m_timeOfDay = fmod(m_timeOfDay, 2.0f * M_PI); // M_PI from <cmath> or define it
+
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            RenderScene();
+            RenderScene(); // We'll modify RenderScene next
             window->pollEvents();
             window->swapBuffers();
         }
@@ -53,7 +82,6 @@ public:
 
     void RenderScene()
     {
-    
         // Get the view projection matrix
         mat4 cameraMatrix = camera->GetViewProjMatrix();
 
@@ -62,32 +90,85 @@ public:
         shader->setUniform("gMinHeight", m_minTerrainHeight);
         shader->setUniform("gMaxHeight", m_maxTerrainHeight);
 
-        // Create a model matrix (for the grid, it might be an identity matrix initially)
-        mat4 modelMatrix = mat4(1.0f); // Identity matrix for no transformation
-
-        // Set the model matrix uniform
+        mat4 modelMatrix = mat4(1.0f);
         shader->setUniform("gModelMatrix", modelMatrix);
 
+        // --- Animate Sun Direction ---
+        vec3 currentSunDirection;
+        float sunAngle = m_timeOfDay; // Angle from 0 towards 2*PI
+
+        // Define sun's path (direction FROM WHICH light comes)
+        // Rises in the East (+X), arcs overhead, sets in the West (-X)
+        // Y is 0 at horizon, 1 at noon (if angle is 0 to PI for day)
+        currentSunDirection.x = cos(sunAngle);
+        currentSunDirection.y = sin(sunAngle); // sin goes 0 -> 1 -> 0 -> -1 -> 0
+        currentSunDirection.z = 0.2f;          // Slight southerly offset for the arc path
+        currentSunDirection = normalize(currentSunDirection);
+
+        // --- Determine Day/Night Light Properties ---
+        vec3  activeLightColor;
+        GLfloat activeAmbientIntensity;
+        GLfloat activeDiffuseIntensity;
+
+        if (currentSunDirection.y > 0.0f) { // Daytime: Sun is above the horizon
+            activeLightColor = m_sunDayColor;
+            activeAmbientIntensity = m_sunDayAmbientIntensity;
+            activeDiffuseIntensity = m_sunDayDiffuseIntensity;
+            // Optional: Adjust m_terrainMaterial->specularIntensity if desired for day
+        } else { // Nighttime: Sun is below the horizon
+            activeLightColor = m_moonNightColor;
+            activeAmbientIntensity = m_moonNightAmbientIntensity;
+            activeDiffuseIntensity = m_moonNightDiffuseIntensity;
+            // Optional: Significantly reduce m_terrainMaterial->specularIntensity for night,
+            // or let the very dim moonNightColor handle making specular almost invisible.
+            // For simplicity, we'll let the light color control specular brightness for now.
+        }
+
+        // --- Update Light Object ---
+        if (light) {
+            light->SetDirection(currentSunDirection);
+            light->SetColor(activeLightColor);
+            light->SetAmbientIntensity(activeAmbientIntensity);
+            light->SetDiffuseIntensity(activeDiffuseIntensity);
+        }
+
+        // --- Set Light Uniforms ---
+        if (light && shader->isValid()) {
+            GLuint shaderID = shader->getProgramID();
+            GLint ambientIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.ambientIntensity");
+            GLint ambientColorLoc     = glGetUniformLocation(shaderID, "directionalLight.color");
+            GLint diffuseIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.diffuseIntensity");
+            GLint directionLoc        = glGetUniformLocation(shaderID, "directionalLight.direction");
+
+            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc);
+        }
+
+        // --- Set Material Uniforms (Shininess is likely constant, Specular Intensity might change if you want) ---
+        if (m_terrainMaterial && shader->isValid()) {
+             GLuint shaderID = shader->getProgramID();
+             GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
+             GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
+             // If you wanted to change material's specular intensity for night:
+             // m_terrainMaterial->SetSpecularIntensity(isDay ? daySpecIntensity : nightSpecIntensity);
+             m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
+        }
+
+        // --- Set Camera Position Uniform ---
+        if (camera && shader->isValid()) {
+            shader->setUniform("gViewPosition_world", camera->GetPosition());
+        }
+
+        // Bind terrain textures and set corresponding uniforms (as before)
         for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
-            if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
+            // ... (your existing texture binding code) ...
+             if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
                 m_terrainTextures[i]->Bind(GL_TEXTURE0 + i);
                 shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
                 shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
             }
         }
 
-        // Pass light information to the shader
-        if (light && shader->isValid()) {
-            // Assuming your shader has these uniform locations
-            GLuint shaderID = shader->getProgramID(); // Use the public getter
-            GLint ambientIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.ambientIntensity");
-            GLint ambientColorLoc = glGetUniformLocation(shaderID, "directionalLight.color");
-            GLint diffuseIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.diffuseIntensity");
-            GLint directionLoc = glGetUniformLocation(shaderID, "directionalLight.direction");
-
-            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc);
-        }
-
+        // Render terrain grid
         grid->Render();
     }
 
@@ -173,13 +254,39 @@ private:
 
         camera = std::make_unique<Camera>(persProjInfo, cameraPos, cameraTarget, cameraUp);
     }
+    
+    void InitMaterial()
+    {
+        m_terrainMaterial = std::make_unique<Material>(0.15f, 24.0f);
+    }
+    
+    void InitLight()
+    {
+        // Sun-like parameters:
+        GLfloat sunColorRed = 1.0f;
+        GLfloat sunColorGreen = 1.0f;
+        GLfloat sunColorBlue = 0.95f; // Slightly warm white
+        GLfloat sunAmbientIntensity = 0.3f; // Keep current, or slightly adjust (e.g., 0.25f)
+
+        // Direction FROM WHICH the sun's rays come
+        // Example: High, slightly to the right (+X), and slightly to the front (+Z)
+        GLfloat sunDirectionX = 0.4f;
+        GLfloat sunDirectionY = 0.8f; // Dominantly from above
+        GLfloat sunDirectionZ = 0.3f;
+
+        GLfloat sunDiffuseIntensity = 0.85f; // Strong diffuse component
+
+        light = std::make_unique<Light>(sunColorRed, sunColorGreen, sunColorBlue, sunAmbientIntensity,
+                                       sunDirectionX, sunDirectionY, sunDirectionZ, sunDiffuseIntensity);
+        std::cout << "Sun-like Directional Light initialized." << std::endl;
+    }
 
     void InitShader()
     {
         auto& shaderManager = ShaderManager::getInstance();
         shader = shaderManager.loadShader("basic",
-                                             "shaders/vshader.glsl",
-                                             "shaders/fshader.glsl");
+                                             "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/vshader.glsl",
+                                             "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/fshader.glsl");
 
         if (!shader) {
             std::cerr << "Failed to load shader" << std::endl;
@@ -208,10 +315,10 @@ private:
 
         // Define texture paths - these could be mapped based on terrainType in a more advanced system
         std::vector<std::string> texturePaths = {
-            "textures/grass.jpg", // Corresponds to layer defined by layer1_percentage
-            "textures/dirt.jpg",  // Corresponds to layer defined by layer2_percentage
-            "textures/rock.jpg",  // Corresponds to layer defined by layer3_percentage
-            "textures/snow.jpg"   // Corresponds to the final layer up to maxHeight
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/grass.jpg", // Corresponds to layer defined by layer1_percentage
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/dirt.jpg",  // Corresponds to layer defined by layer2_percentage
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/rock.jpg",  // Corresponds to layer defined by layer3_percentage
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/snow.jpg"   // Corresponds to the final layer up to maxHeight
         };
 
         m_terrainTextures.clear();
@@ -261,12 +368,6 @@ private:
         }
     }
 
-    void InitLight()
-    {
-        light = std::make_unique<Light>(0.8f, 0.8f, 0.8f, 0.2f, // Red, Green, Blue, Ambient Intensity
-                                       -0.5f, -1.0f, -0.5f, 0.8f); // Direction X, Y, Z, Diffuse Intensity
-        std::cout << "Directional Light initialized." << std::endl;
-    }
 
     // Member variables
     std::unique_ptr<Window> window;
@@ -289,43 +390,41 @@ GridDemo* g_app = nullptr;
 // Callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    g_app->KeyboardCB(key, action);
+g_app->KeyboardCB(key, action);
 }
 
 static void CursorPosCallback(GLFWwindow* window, double x, double y)
 {
-    g_app->PassiveMouseCB((int)x, (int)y);
+g_app->PassiveMouseCB((int)x, (int)y);
 }
 
 static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode)
 {
-    double x, y;
-    glfwGetCursorPos(window, &x, &y);
-    g_app->MouseCB(Button, Action, (int)x, (int)y);
+double x, y;
+glfwGetCursorPos(window, &x, &y);
+g_app->MouseCB(Button, Action, (int)x, (int)y);
 }
 
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
 {
-    g_app->ResizeCB(width, height);
+g_app->ResizeCB(width, height);
 }
 
 int main(int argc, char** argv)
 {
-    // Seed random number generator
-    srand(time(0));
 
-    g_app = new GridDemo();
-    g_app->Init();
+g_app = new GridDemo();
+g_app->Init();
 
-    // Set up OpenGL state
-    glClearColor(0.529f, 0.808f, 0.922f, 1.0f); // Sky blue color
-    glFrontFace(GL_CCW);
-    glCullFace(GL_BACK);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_DEPTH_TEST);
+// Set up OpenGL state
+glClearColor(0.529f, 0.808f, 0.922f, 1.0f); // Sky blue color
+glFrontFace(GL_CCW);
+glCullFace(GL_BACK);
+glEnable(GL_CULL_FACE);
+glEnable(GL_DEPTH_TEST);
 
-    g_app->Run();
-    
-    delete g_app;
-    return 0;
+g_app->Run();
+   
+delete g_app;
+return 0;
 }

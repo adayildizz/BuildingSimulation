@@ -7,10 +7,9 @@ layout (location = 2) in vec3 vNormal;     // Vertex normal (model space)
 uniform mat4 gVP;          // Combined View * Projection matrix
 uniform mat4 gModelMatrix; // Model matrix (transforms model to world space)
 
-
-out vec2 outTexCoord;       // Pass texture coordinates to fragment shader
-out vec3 outWorldPos;       // Pass world position to fragment shader
-out vec3 outNormal_world;   // Pass normal (in world space) to fragment shader - NEW
+out vec2 outTexCoord;      // Pass texture coordinates to fragment shader
+out vec3 outWorldPos;      // Pass world position to fragment shader
+out vec3 outNormal_world;  // Pass normal (in world space) to fragment shader
 
 void main()
 {
@@ -22,9 +21,9 @@ void main()
     gl_Position = gVP * worldPos_vec4;
     
     // Transform normal to world space
-    // For normals, use the upper 3x3 of the model matrix.
+    // For normals, use the upper 3x3 of the model matrix (inverse transpose if non-uniform scaling).
+    // Assuming uniform scaling for simplicity here, matching your original.
     outNormal_world = normalize(mat3(gModelMatrix) * vNormal);
     
     outTexCoord = vTexCoord;
-    
 }

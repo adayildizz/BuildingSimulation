@@ -1,7 +1,7 @@
 #ifndef LIGHT_H
 #define LIGHT_H
 
-#include "Angel.h" 
+#include "Angel.h"
 
 class Light {
 public:
@@ -12,6 +12,10 @@ public:
 
     void UseLight(GLfloat ambientIntensityLocation, GLfloat ambientColorLocation,
                   GLfloat diffuseIntensityLocation, GLfloat directionLocation);
+    void SetDirection(const vec3& dir);
+    void SetColor(const vec3& col);
+    void SetAmbientIntensity(GLfloat intensity);
+    void SetDiffuseIntensity(GLfloat intensity);
 
     ~Light();
 

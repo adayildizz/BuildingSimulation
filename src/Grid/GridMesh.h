@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../../include/Angel.h"
+#include "Angel.h"
 #include <vector>
 
-class BaseGrid;
+class BaseGrid; // Forward declaration
 
 class GridMesh {
 public:
@@ -18,8 +18,11 @@ private:
     struct Vertex {
         vec3 position;
         vec2 texCoord;
-        
-        void InitVertex(const BaseGrid* baseGrid, int x, int z);
+        vec3 normal;   // Vertex normal
+
+        // InitVertex will now only initialize position and texCoord.
+        // Normals will be calculated in a separate step.
+        void InitPosAndTex(const BaseGrid* baseGrid, int x, int z);
     };
     
     // Initialize OpenGL state
@@ -28,9 +31,10 @@ private:
     // Populate buffers with vertices and indices
     void PopulateBuffers(const BaseGrid* baseGrid);
     
-    // Initialize vertices and indices
+    // Initialize vertices (positions, texCoords) and then calculate normals
     void InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& vertices);
-    void InitIndices(std::vector<uint>& indices);
+    void CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& vertices); // <<< ADDED: For calculating normals
+    void InitIndices(std::vector<unsigned int>& indices); // Changed uint to unsigned int for consistency
     
     // Grid dimensions
     int m_width = 0;
@@ -40,4 +44,4 @@ private:
     GLuint m_vao;
     GLuint m_vb;
     GLuint m_ib;
-}; 
+};

@@ -27,4 +27,20 @@ void Light::UseLight(GLfloat ambientIntensityLocation, GLfloat ambientColorLocat
     glUniform1f(diffuseIntensityLocation, diffuseIntensity);
 }
 
+void Light::SetDirection(const vec3& dir) {
+    direction = dir; // Assumes 'direction' is a vec3 member
+}
+
+void Light::SetColor(const vec3& col) {
+    color = col; // Assumes 'color' is a vec3 member
+}
+
+void Light::SetAmbientIntensity(GLfloat intensity) {
+    ambientIntensity = intensity; // Assumes 'ambientIntensity' is a GLfloat member
+}
+
+void Light::SetDiffuseIntensity(GLfloat intensity) {
+    diffuseIntensity = intensity; // Assumes 'diffuseIntensity' is a GLfloat member
+}
+
 Light::~Light() {}

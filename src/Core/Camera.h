@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../include/Angel.h"
-#include "../Core/Shader.h"
+#include "Angel.h"
+#include "Shader.h"
 
 struct PersProjInfo {
     float FOV;
@@ -46,6 +46,7 @@ public:
     mat4 GetViewMatrix() const;
     mat4 GetViewProjMatrix() const;
     mat4 GetViewPortMatrix() const;
+    vec3 GetPosition() const;
 
     void Print() const { std::cout << "Camera[pos = " << m_pos << ", target = " << m_target << ", up = " << m_up << "]" << std::endl; }
 
