@@ -30,15 +30,18 @@ std::unique_ptr<Material> m_terrainMaterial;
 float m_timeOfDay = 0.0f;           // Current time, progresses from 0 upwards
 float m_dayCycleSpeed = 0.05f;    // How fast m_timeOfDay increases (adjust for desired speed)
 
+vec3 m_daySkyColor = vec3(0.529f, 0.808f, 0.922f); // Your current nice sky blue
+vec3 m_nightSkyColor = vec3(0.0f, 0.0f, 0.0f);   // Pitch black for night
+
 // Properties for SUNLIGHT (Daytime)
 vec3 m_sunDayColor = vec3(1.0f, 1.0f, 0.95f); // Bright, slightly warm white
 GLfloat m_sunDayAmbientIntensity = 0.3f;
 GLfloat m_sunDayDiffuseIntensity = 0.85f;
 
 // Properties for MOONLIGHT or very dim ambient (Nighttime)
-vec3 m_moonNightColor = vec3(0.05f, 0.05f, 0.15f); // Very dim, cool bluish
-GLfloat m_moonNightAmbientIntensity = 0.05f;
-GLfloat m_moonNightDiffuseIntensity = 0.0f;  // Moonlight often has minimal direct diffuse
+vec3 m_moonNightColor = vec3(0.4f, 0.45f, 0.6f); // A brighter, but still cool, dim light
+GLfloat m_moonNightAmbientIntensity = 0.6f;      // Increased ambient for general visibility
+GLfloat m_moonNightDiffuseIntensity = 0.05f;     // Small amount of diffuse for soft moonlight directionality
 
 
 // Grid demo application
@@ -61,20 +64,19 @@ public:
 
     void Run()
     {
-        static double lastFrameTime = glfwGetTime(); // Initialize when Run() is first called
+        static double lastFrameTime = glfwGetTime();
 
         while (!window->shouldClose()) {
             double currentFrameTime = glfwGetTime();
             float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
             lastFrameTime = currentFrameTime;
 
-            // --- UPDATE TIME OF DAY ---
             m_timeOfDay += deltaTime * m_dayCycleSpeed;
-            // Optional: Keep m_timeOfDay from growing infinitely (e.g., wrap around every 2*PI for a full cycle)
-            // m_timeOfDay = fmod(m_timeOfDay, 2.0f * M_PI); // M_PI from <cmath> or define it
+            m_timeOfDay = fmod(m_timeOfDay, 2.0f * M_PI);
 
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            RenderScene(); // We'll modify RenderScene next
+            // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // <<< REMOVE THIS LINE
+            RenderScene(); // RenderScene now handles clearing with the correct sky color
+
             window->pollEvents();
             window->swapBuffers();
         }
@@ -82,6 +84,38 @@ public:
 
     void RenderScene()
     {
+        // --- Calculate Sun's Position for Sky and Light ---
+        vec3 calculatedCelestialDirection; // This is the raw cyclic direction vector
+        float celestialAngleRadians = m_timeOfDay; // From your Run() loop
+
+        calculatedCelestialDirection.x = cos(celestialAngleRadians);
+        calculatedCelestialDirection.y = sin(celestialAngleRadians); // Y component: positive during day, negative at night
+        calculatedCelestialDirection.z = 0.2f; // Your chosen Z offset for the sun/moon arc
+
+        // --- Determine Current Sky Color ---
+        // We'll use the sun's height (calculatedCelestialDirection.y before normalization)
+        // to interpolate between night and day sky colors.
+        // dayFactor will be 0.0 when sun is at/below horizon (y <= 0),
+        // and 1.0 when sun is at its highest point in its arc (y = 1, if arc is purely in XY).
+        float dayFactor = fmax(0.0f, calculatedCelestialDirection.y); // calculatedCelestialDirection.y is sin(angle)
+
+        // Perform linear interpolation manually for vec3:
+        // result = x * (1.0 - a) + y * a
+        vec3 currentSkyColor = m_nightSkyColor * (1.0f - dayFactor) + m_daySkyColor * dayFactor;
+
+        // --- Set Clear Color and Clear Buffers ---
+        glClearColor(currentSkyColor.x, currentSkyColor.y, currentSkyColor.z, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // --- Set Clear Color and Clear Buffers ---
+        glClearColor(currentSkyColor.x, currentSkyColor.y, currentSkyColor.z, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear with the new dynamic sky color
+
+        // --- Normalize celestial direction for lighting calculations ---
+        // (This needs to be done after using .y for the skycolor factor if you want the raw sin value for interpolation)
+        vec3 actualLightDirectionForShader; // This will be normalized later
+
+        // ... (The rest of your existing RenderScene logic starts here) ...
         // Get the view projection matrix
         mat4 cameraMatrix = camera->GetViewProjMatrix();
 
@@ -89,44 +123,40 @@ public:
         shader->setUniform("gVP", cameraMatrix);
         shader->setUniform("gMinHeight", m_minTerrainHeight);
         shader->setUniform("gMaxHeight", m_maxTerrainHeight);
-
         mat4 modelMatrix = mat4(1.0f);
         shader->setUniform("gModelMatrix", modelMatrix);
 
-        // --- Animate Sun Direction ---
-        vec3 currentSunDirection;
-        float sunAngle = m_timeOfDay; // Angle from 0 towards 2*PI
 
-        // Define sun's path (direction FROM WHICH light comes)
-        // Rises in the East (+X), arcs overhead, sets in the West (-X)
-        // Y is 0 at horizon, 1 at noon (if angle is 0 to PI for day)
-        currentSunDirection.x = cos(sunAngle);
-        currentSunDirection.y = sin(sunAngle); // sin goes 0 -> 1 -> 0 -> -1 -> 0
-        currentSunDirection.z = 0.2f;          // Slight southerly offset for the arc path
-        currentSunDirection = normalize(currentSunDirection);
-
-        // --- Determine Day/Night Light Properties ---
+        // --- Determine Day/Night Light Properties based on normalized direction---
+        vec3 normalizedCelestialDirection = normalize(calculatedCelestialDirection); // Normalize for lighting
         vec3  activeLightColor;
         GLfloat activeAmbientIntensity;
         GLfloat activeDiffuseIntensity;
 
-        if (currentSunDirection.y > 0.0f) { // Daytime: Sun is above the horizon
+        // Use normalized Y for day/night light switch to be consistent with light direction logic
+        if (normalizedCelestialDirection.y > 0.01f) { // Daytime: Sun is clearly above horizon
             activeLightColor = m_sunDayColor;
             activeAmbientIntensity = m_sunDayAmbientIntensity;
             activeDiffuseIntensity = m_sunDayDiffuseIntensity;
-            // Optional: Adjust m_terrainMaterial->specularIntensity if desired for day
-        } else { // Nighttime: Sun is below the horizon
+            actualLightDirectionForShader = normalizedCelestialDirection;
+        } else { // Nighttime: Sun is at or below horizon, so we use moon properties
             activeLightColor = m_moonNightColor;
             activeAmbientIntensity = m_moonNightAmbientIntensity;
             activeDiffuseIntensity = m_moonNightDiffuseIntensity;
-            // Optional: Significantly reduce m_terrainMaterial->specularIntensity for night,
-            // or let the very dim moonNightColor handle making specular almost invisible.
-            // For simplicity, we'll let the light color control specular brightness for now.
+
+            // Moon's direction (as implemented before)
+            actualLightDirectionForShader.x = normalizedCelestialDirection.x;
+            actualLightDirectionForShader.y = abs(normalizedCelestialDirection.y);
+            if (actualLightDirectionForShader.y < 0.1f) {
+                actualLightDirectionForShader.y = 0.1f;
+            }
+            actualLightDirectionForShader.z = normalizedCelestialDirection.z; // Use Z from the normalized celestial direction
+            actualLightDirectionForShader = normalize(actualLightDirectionForShader); // Re-normalize moon direction
         }
 
-        // --- Update Light Object ---
+        // Update Light Object
         if (light) {
-            light->SetDirection(currentSunDirection);
+            light->SetDirection(actualLightDirectionForShader);
             light->SetColor(activeLightColor);
             light->SetAmbientIntensity(activeAmbientIntensity);
             light->SetDiffuseIntensity(activeDiffuseIntensity);
@@ -148,8 +178,7 @@ public:
              GLuint shaderID = shader->getProgramID();
              GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
              GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
-             // If you wanted to change material's specular intensity for night:
-             // m_terrainMaterial->SetSpecularIntensity(isDay ? daySpecIntensity : nightSpecIntensity);
+
              m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
         }
 
