@@ -185,7 +185,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
             glEnableVertexAttribArray(vColorLocation);
             glVertexAttribPointer(vColorLocation, 4, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 7));
         }
-        GLuint vTexCoordLocation = glGetAttribLocation(program, "vTexCoord_attr");
+        GLuint vTexCoordLocation = glGetAttribLocation(program, "vTexCoord");
         if (vTexCoordLocation != -1) {
             glEnableVertexAttribArray(vTexCoordLocation);
             glVertexAttribPointer(vTexCoordLocation, 2, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 11));
@@ -215,7 +215,7 @@ void ObjectLoader::render(const mat4& modelViewMatrix) {
     for (size_t i = 0; i < vaos.size(); ++i) {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, meshTextureIDs[i]);
-        glUniform1i(glGetUniformLocation(program, "diffuseTexture"), 0);
+        glUniform1i(glGetUniformLocation(program, "gTextureHeight0"), 0);
 
         glBindVertexArray(vaos[i]);
         glDrawElements(GL_TRIANGLES, indexCounts[i], GL_UNSIGNED_INT, 0);

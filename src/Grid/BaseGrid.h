@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../include/Angel.h"
+#include "Angel.h"
 // #include "../Core/Texture.h" // Texture.h might not be needed directly by BaseGrid anymore
 #include <vector>
 #include <memory> // Still useful for m_gridMesh if it were a smart pointer, but it's raw now.
