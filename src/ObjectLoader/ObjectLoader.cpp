@@ -46,7 +46,7 @@ void ObjectLoader::createDefaultWhiteTexture() {
 
 bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned int>& specificMeshesToLoad) {
     cleanup(); // Clean up any previously loaded model data
-
+    stbi_set_flip_vertically_on_load(true);
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filename, 
         aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs);

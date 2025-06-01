@@ -4,11 +4,11 @@
 #include "Core/Camera.h"
 #include "Grid/TerrainGrid.h"
 #include "Core/Texture.h"
-#include "light.h"
-#include "Material.h"
+#include "Core/light.h"
+#include "Core/Material.h"
 #include "ObjectLoader/ObjectLoader.h"
 #include "Angel.h"
-#include "CelestialLightManager.h"
+#include "Core/CelestialLightManager.h"
 
 #include <iostream>
 #include <memory>
@@ -26,14 +26,6 @@ float objectPosX = 500.0f;
 float ObjectPosY = 10.0f;
 float ObjectPosZ = 600.0f;
 
-
-
-//global mouse pos
-double mouseX = 0.0f;
-double mouseY = 0.0f;
-float objectPosX = 500.0f;
-float ObjectPosY = 10.0f;
-float ObjectPosZ = 600.0f;
 // Constants
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
@@ -45,8 +37,9 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
 static void CursorPosCallback(GLFWwindow* window, double x, double y);
 static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode);
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-// Material pointer
+// Global Pointers
 std::unique_ptr<Material> m_terrainMaterial;
+std::shared_ptr<Shader> shader;
 
 // Grid demo application
 class GridDemo
@@ -238,19 +231,12 @@ private:
 
     void InitObjects(){
         std::cout << "loading objects.." << std::endl;
-      
-        // Ensure the "Object" shader is loaded and get its program ID
-        std::shared_ptr<Shader> objShader = ShaderManager::getInstance().getShader("Object");
-        if (!objShader) {
-            std::cerr << "Error: Object shader not found during InitObjects!" << std::endl;
-            return; // Or handle error appropriately
-        }
-        GLuint objectShaderProgramID = objShader->getProgramID();
+       GLuint objectShaderProgramID = shader->getProgramID();
 
         objectLoader = new ObjectLoader(objectShaderProgramID); 
         if (objectLoader) {
-            // Load only mesh 4 (assuming this is the main house model)
-            std::vector<unsigned int> meshesToLoad = {4};
+            // Load only mesh 4 (assuming 0-indexed, if it's the 5th mesh, use 4. If it's literally named mesh 4, this is how we did it before)
+            std::vector<unsigned int> meshesToLoad = {4}; 
             if (!objectLoader->load("../Objects/model.obj", meshesToLoad)) {
                 std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
             } else {
@@ -274,25 +260,6 @@ private:
         camera = std::make_unique<Camera>(persProjInfo, cameraPos, cameraTarget, cameraUp);
     }
 
-    void InitObjects(){
-        std::cout << "loading objects using unified shader..." << std::endl;
-        if (!shader) {
-            std::cerr << "Error: Unified shader not loaded before InitObjects!" << std::endl;
-            return;
-        }
-        GLuint unifiedShaderProgramID = shader->getProgramID();
-        objectLoader = new ObjectLoader(unifiedShaderProgramID);
-        if (objectLoader) {
-            std::vector<unsigned int> meshesToLoad = {4};
-            if (!objectLoader->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/Objects/cottage_obj.obj", meshesToLoad)) {
-                std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
-            } else {
-                std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
-            }
-        } else {
-            std::cerr << "Failed to create ObjectLoader instance." << std::endl;
-        }
-    }
 
     void InitMaterial()
     {
@@ -320,8 +287,8 @@ private:
     {
         auto& shaderManager = ShaderManager::getInstance();
         shader = shaderManager.loadShader("unifiedShader",
-                                        "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/vshader.glsl",
-                                        "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/fshader.glsl");
+                                        "shaders/vshader.glsl",
+                                        "shaders/fshader.glsl");
         if (!shader) {
             std::cerr << "Failed to load unified shader (shaders/vshader.glsl, shaders/fshader.glsl)" << std::endl;
             exit(-1);
@@ -347,10 +314,10 @@ private:
 
         const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/grass.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/dirt.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/rock.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/snow.jpg"
+            "resources/textures/grass.jpg",
+            "resources/textures/dirt.jpg",
+            "resources/textures/rock.jpg",
+            "resources/textures/snow.jpg"
         };
 
         m_terrainTextures.clear();

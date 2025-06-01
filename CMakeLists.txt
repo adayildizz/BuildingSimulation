@@ -18,6 +18,9 @@ set(SOURCES
     src/Core/Camera.cpp
     src/Core/Texture.cpp
     src/Core/stb_image_impl.cpp
+    src/Core/CelestialLightManager.cpp
+    src/Core/light.cpp
+    src/Core/Material.cpp
     src/Grid/BaseGrid.cpp
     src/Grid/TerrainGrid.cpp
     src/Grid/GridMesh.cpp

@@ -1,4 +1,4 @@
-#include "stb_image.h"
+#include "../include/stb/stb_image.h"
 #include "Texture.h"
 
 Texture::Texture(GLenum TextureTarget, const std::string& FileName)
