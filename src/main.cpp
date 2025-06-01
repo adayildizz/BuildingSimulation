@@ -8,13 +8,15 @@
 #include "Material.h"
 #include "ObjectLoader/ObjectLoader.h"
 #include "Angel.h"
+#include "CelestialLightManager.h"
+
 #include <iostream>
 #include <memory>
 #include <vector>
 #include <string>
 #include <cstdlib>
 #include <ctime>
- 
+#include <cmath>
 
 //global mouse pos
 double mouseX = 0.0f;
@@ -22,7 +24,6 @@ double mouseY = 0.0f;
 float objectPosX = 500.0f;
 float ObjectPosY = 10.0f;
 float ObjectPosZ = 600.0f;
-// GLuint program, Projection; // REMOVE: No longer needed as global for separate object shader
 
 // Constants
 const int WINDOW_WIDTH = 1920;
@@ -38,25 +39,6 @@ static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
 // Material pointer
 std::unique_ptr<Material> m_terrainMaterial;
-// You might want a separate material for objects if their properties differ significantly
-// std::unique_ptr<Material> m_objectMaterial;
-
-float m_timeOfDay = 0.0f;           // Current time, progresses from 0 upwards
-float m_dayCycleSpeed = 0.3f;    // How fast m_timeOfDay increases (adjust for desired speed)
-
-vec3 m_daySkyColor = vec3(0.529f, 0.808f, 0.922f); // Your current nice sky blue
-vec3 m_nightSkyColor = vec3(0.0f, 0.0f, 0.0f);   // Pitch black for night
-
-// Properties for SUNLIGHT (Daytime)
-vec3 m_sunDayColor = vec3(1.0f, 1.0f, 0.95f); // Bright, slightly warm white
-GLfloat m_sunDayAmbientIntensity = 0.3f;
-GLfloat m_sunDayDiffuseIntensity = 0.85f;
-
-// Properties for MOONLIGHT or very dim ambient (Nighttime)
-vec3 m_moonNightColor = vec3(0.4f, 0.45f, 0.6f); // A brighter, but still cool, dim light
-GLfloat m_moonNightAmbientIntensity = 0.6f;      // Increased ambient for general visibility
-GLfloat m_moonNightDiffuseIntensity = 0.05f;     // Small amount of diffuse for soft moonlight directionality
-
 
 // Grid demo application
 class GridDemo
@@ -76,10 +58,11 @@ public:
         InitCallbacks();
         InitCamera();
         InitMaterial();
-        InitShader();   // Must be after InitMaterial if material needs shader IDs early, but usually not
+        InitShader();
         InitGrid();
-        InitObjects();  // Must be after InitShader so objectLoader gets the correct shader program ID
+        InitObjects();
         InitLight();
+        m_celestialLightManager = std::make_unique<CelestialLightManager>(); // INITIALIZE LIGHT MANAGER
     }
 
     void Run()
@@ -91,9 +74,11 @@ public:
             float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
             lastFrameTime = currentFrameTime;
 
-            m_timeOfDay += deltaTime * m_dayCycleSpeed;
-            m_timeOfDay = fmod(m_timeOfDay, 2.0f * M_PI);
-
+            // Update the CelestialLightManager
+            if (m_celestialLightManager) {
+                m_celestialLightManager->Update(deltaTime);
+            }
+            
             RenderScene();
 
             window->pollEvents();
@@ -103,50 +88,18 @@ public:
 
     void RenderScene()
     {
-        // --- Calculate Sun's Position for Sky and Light ---
-        vec3 calculatedCelestialDirection;
-        float celestialAngleRadians = m_timeOfDay;
-
-        calculatedCelestialDirection.x = cos(celestialAngleRadians);
-        calculatedCelestialDirection.y = sin(celestialAngleRadians);
-        calculatedCelestialDirection.z = 0.2f;
-
-        float dayFactor = fmax(0.0f, calculatedCelestialDirection.y);
-        vec3 currentSkyColor = m_nightSkyColor * (1.0f - dayFactor) + m_daySkyColor * dayFactor;
-
+        // --- Get Sky Color and Configure Light from CelestialLightManager ---
+        vec3 currentSkyColor = vec3(0.0f); // Default to black if manager not ready
+        if (m_celestialLightManager) {
+            currentSkyColor = m_celestialLightManager->GetCurrentSkyColor();
+            if (light) { // light is the std::unique_ptr<Light>
+                m_celestialLightManager->ConfigureLight(light.get());
+            }
+        }
+        
         glClearColor(currentSkyColor.x, currentSkyColor.y, currentSkyColor.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        vec3 normalizedCelestialDirection = normalize(calculatedCelestialDirection);
-        vec3 actualLightDirectionForShader;
-        vec3 activeLightColor;
-        GLfloat activeAmbientIntensity;
-        GLfloat activeDiffuseIntensity;
-
-        if (normalizedCelestialDirection.y > 0.01f) {
-            activeLightColor = m_sunDayColor;
-            activeAmbientIntensity = m_sunDayAmbientIntensity;
-            activeDiffuseIntensity = m_sunDayDiffuseIntensity;
-            actualLightDirectionForShader = normalizedCelestialDirection;
-        } else {
-            activeLightColor = m_moonNightColor;
-            activeAmbientIntensity = m_moonNightAmbientIntensity;
-            activeDiffuseIntensity = m_moonNightDiffuseIntensity;
-            actualLightDirectionForShader.x = normalizedCelestialDirection.x;
-            actualLightDirectionForShader.y = abs(normalizedCelestialDirection.y);
-            if (actualLightDirectionForShader.y < 0.1f) {
-                actualLightDirectionForShader.y = 0.1f;
-            }
-            actualLightDirectionForShader.z = normalizedCelestialDirection.z;
-            actualLightDirectionForShader = normalize(actualLightDirectionForShader);
-        }
-
-        if (light) {
-            light->SetDirection(actualLightDirectionForShader);
-            light->SetColor(activeLightColor);
-            light->SetAmbientIntensity(activeAmbientIntensity);
-            light->SetDiffuseIntensity(activeDiffuseIntensity);
-        }
 
         // Use the unified shader for all rendering
         shader->use();
@@ -156,34 +109,32 @@ public:
         shader->setUniform("gVP", viewProjMatrix);
         shader->setUniform("gViewPosition_world", camera->GetPosition());
 
-        // Light Uniforms
+        // Light Uniforms (The 'light' object is now configured by CelestialLightManager)
         if (light && shader->isValid()) {
             GLuint shaderID = shader->getProgramID();
             GLint ambientIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.ambientIntensity");
             GLint ambientColorLoc     = glGetUniformLocation(shaderID, "directionalLight.color");
             GLint diffuseIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.diffuseIntensity");
             GLint directionLoc        = glGetUniformLocation(shaderID, "directionalLight.direction");
-            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc);
+            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc); // Use the configured light
         }
 
         // --- Render Terrain ---
-        shader->setUniform("u_isTerrain", true); // Tell shader it's rendering terrain
+        shader->setUniform("u_isTerrain", true);
 
-        // Terrain Material Uniforms
         if (m_terrainMaterial && shader->isValid()) {
-             GLuint shaderID = shader->getProgramID();
-             GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
-             GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
-             m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
+            GLuint shaderID = shader->getProgramID();
+            GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
+            GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
+            m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
         }
-        // Set terrain-specific uniforms
         shader->setUniform("gMinHeight", m_minTerrainHeight);
         shader->setUniform("gMaxHeight", m_maxTerrainHeight);
-        mat4 terrainModelMatrix = mat4(1.0f); // Terrain is at origin, not transformed
+        mat4 terrainModelMatrix = mat4(1.0f);
         shader->setUniform("gModelMatrix", terrainModelMatrix);
 
         for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
-             if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
+            if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
                 m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
                 shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
                 shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
@@ -192,16 +143,7 @@ public:
         grid->Render();
 
         // --- Render Objects ---
-        shader->setUniform("u_isTerrain", false); // Tell shader it's rendering an object
-
-        // Object Material Uniforms (if different from terrain)
-        // For now, objects will use the same material properties as terrain.
-        // If you had m_objectMaterial, you would call:
-        // m_objectMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
-        // Or set uniforms directly:
-        // shader->setUniform("material.specularIntensity", 0.5f); // Example
-        // shader->setUniform("material.shininess", 32.0f);      // Example
-
+        shader->setUniform("u_isTerrain", false);
 
         vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ);
         float scale = 100.0f;
@@ -214,21 +156,11 @@ public:
         mat4 objectScaleMatrix = Scale(5.0f,5.0f, 5.0f);
         mat4 objectModelMatrix = translation_from_cursor * objectScaleMatrix;
 
-        shader->setUniform("gModelMatrix", objectModelMatrix); // Set model matrix for the object
+        shader->setUniform("gModelMatrix", objectModelMatrix);
 
         if (objectLoader) {
-            // ObjectLoader::render should:
-            // 1. Bind the object's VAO.
-            // 2. Bind the object's diffuse texture to GL_TEXTURE0.
-            //    (because when u_isTerrain is false, fshader.glsl uses gTextureHeight0 for the object's texture)
-            // 3. Call glDrawElements/Arrays.
-            // It should NOT set its own shaders or matrix uniforms if they conflict with gVP/gModelMatrix.
-            // The 'mvpMatrix' argument might be ignored by ObjectLoader or set a uniform not used by vshader.glsl.
-            mat4 viewMatrix = camera->GetViewMatrix(); // Only needed if objectLoader computes MVP internally
-            mat4 mvpMatrix = viewProjMatrix * objectModelMatrix; // This is the actual MVP for the object
-                                                                // but vshader.glsl computes it from gVP and gModelMatrix.
-            objectLoader->render(mvpMatrix); // Pass MVP if ObjectLoader expects it, though it might be redundant.
-                                             // Ideally, ObjectLoader::render() would not need this.
+            mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
+            objectLoader->render(mvpMatrix);
         }
     }
 
@@ -254,8 +186,8 @@ public:
 
     void PassiveMouseCB(int x, int y)
     {
-        mouseX = static_cast<double>(x); // Update global mouse X
-        mouseY = static_cast<double>(y); // Update global mouse Y
+        mouseX = static_cast<double>(x);
+        mouseY = static_cast<double>(y);
         camera->OnMouse(x, y);
     }
 
@@ -298,28 +230,22 @@ private:
         vec3 cameraUp = vec3(0.0f, 1.0f, 0.0f);
         float fov = 45.0f;
         float zNear = 0.1f;
-        float zFar = 2000.0f; // Increased zFar for larger scenes
+        float zFar = 2000.0f;
         PersProjInfo persProjInfo = {fov, static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT), zNear, zFar};
         camera = std::make_unique<Camera>(persProjInfo, cameraPos, cameraTarget, cameraUp);
     }
 
     void InitObjects(){
         std::cout << "loading objects using unified shader..." << std::endl;
-
-        // The unified shader (terrain shader) is now used for objects too.
-        // Ensure 'shader' is already loaded by InitShader()
         if (!shader) {
             std::cerr << "Error: Unified shader not loaded before InitObjects!" << std::endl;
             return;
         }
         GLuint unifiedShaderProgramID = shader->getProgramID();
-
-        // ObjectLoader is initialized with the program ID of the unified shader.
-        // It will use this ID to get attribute/uniform locations if needed.
         objectLoader = new ObjectLoader(unifiedShaderProgramID);
         if (objectLoader) {
-            std::vector<unsigned int> meshesToLoad = {4}; // Load specific mesh for cottage
-            if (!objectLoader->load("../Objects/cottage_obj.obj", meshesToLoad)) {
+            std::vector<unsigned int> meshesToLoad = {4};
+            if (!objectLoader->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/Objects/cottage_obj.obj", meshesToLoad)) {
                 std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
             } else {
                 std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
@@ -331,44 +257,37 @@ private:
 
     void InitMaterial()
     {
-        // This material will be used by terrain, and by default, by objects too.
         m_terrainMaterial = std::make_unique<Material>(0.15f, 24.0f);
-        // If objects need different material properties:
-        // m_objectMaterial = std::make_unique<Material>(/* specular for object */, /* shininess for object */);
     }
 
-    void InitLight()
+    void InitLight() // This method now just creates the Light object. Its properties are set by CelestialLightManager.
     {
-        GLfloat sunColorRed = 1.0f;
-        GLfloat sunColorGreen = 1.0f;
-        GLfloat sunColorBlue = 0.95f;
-        GLfloat sunAmbientIntensity = 0.3f;
-        GLfloat sunDirectionX = 0.4f;
-        GLfloat sunDirectionY = 0.8f;
-        GLfloat sunDirectionZ = 0.3f;
-        GLfloat sunDiffuseIntensity = 0.85f;
+        // Initial values for the Light object. These will be quickly overwritten by CelestialLightManager.
+        GLfloat initialColorRed = 1.0f;
+        GLfloat initialColorGreen = 1.0f;
+        GLfloat initialColorBlue = 1.0f;
+        GLfloat initialAmbientIntensity = 0.2f;
+        GLfloat initialDirectionX = 0.0f;
+        GLfloat initialDirectionY = 1.0f; // Pointing up initially
+        GLfloat initialDirectionZ = 0.0f;
+        GLfloat initialDiffuseIntensity = 0.5f;
 
-        light = std::make_unique<Light>(sunColorRed, sunColorGreen, sunColorBlue, sunAmbientIntensity,
-                                       sunDirectionX, sunDirectionY, sunDirectionZ, sunDiffuseIntensity);
-        std::cout << "Directional Light initialized." << std::endl;
+        light = std::make_unique<Light>(initialColorRed, initialColorGreen, initialColorBlue, initialAmbientIntensity,
+                                        initialDirectionX, initialDirectionY, initialDirectionZ, initialDiffuseIntensity);
+        std::cout << "Directional Light object created." << std::endl;
     }
 
     void InitShader()
     {
         auto& shaderManager = ShaderManager::getInstance();
-
-        // Load the unified shader (previously terrain shader)
-        shader = shaderManager.loadShader("unifiedShader", // Renamed for clarity
-                                             "../shaders/vshader.glsl",
-                                             "../shaders/fshader.glsl");
+        shader = shaderManager.loadShader("unifiedShader",
+                                        "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/vshader.glsl",
+                                        "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/fshader.glsl");
         if (!shader) {
             std::cerr << "Failed to load unified shader (shaders/vshader.glsl, shaders/fshader.glsl)" << std::endl;
             exit(-1);
         }
         std::cout << "Unified shader loaded successfully." << std::endl;
-
-        // REMOVE loading of the separate object shader
-        // objectShader = shaderManager.loadShader("Object", ...);
     }
 
     void InitGrid()
@@ -382,17 +301,17 @@ private:
         float centralFlatRatioForGenerator = 0.25f;
 
         grid->Init(GRID_SIZE, GRID_SIZE, worldScale, textureScale,
-                  terrainType, maxEdgeHeightForGenerator, centralFlatRatioForGenerator);
+                    terrainType, maxEdgeHeightForGenerator, centralFlatRatioForGenerator);
 
         m_minTerrainHeight = grid->GetMinHeight();
         m_maxTerrainHeight = grid->GetMaxHeight();
 
         const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
-            "../resources/textures/grass.jpg",
-            "../resources/textures/dirt.jpg",
-            "../resources/textures/rock.jpg",
-            "../resources/textures/snow.jpg"
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/grass.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/dirt.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/rock.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/snow.jpg"
         };
 
         m_terrainTextures.clear();
@@ -432,10 +351,10 @@ private:
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
-    std::shared_ptr<Shader> shader; // This is now the single, unified shader
-    // std::shared_ptr<Shader> objectShader; // REMOVE: No longer needed
+    std::shared_ptr<Shader> shader;
     std::unique_ptr<TerrainGrid> grid;
-    std::unique_ptr<Light> light;
+    std::unique_ptr<Light> light; // The actual light object used by shaders
+    std::unique_ptr<CelestialLightManager> m_celestialLightManager; // <<< ADD LIGHT MANAGER MEMBER
     bool m_isWireframe = false;
     float m_minTerrainHeight = 0.0f;
     float m_maxTerrainHeight = 1.0f;
