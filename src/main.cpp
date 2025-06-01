@@ -12,6 +12,7 @@
 
 #include <iostream>
 #include <memory>
+
 #include <vector>
 #include <string>
 #include <cstdlib>
@@ -25,6 +26,14 @@ float objectPosX = 500.0f;
 float ObjectPosY = 10.0f;
 float ObjectPosZ = 600.0f;
 
+
+
+//global mouse pos
+double mouseX = 0.0f;
+double mouseY = 0.0f;
+float objectPosX = 500.0f;
+float ObjectPosY = 10.0f;
+float ObjectPosZ = 600.0f;
 // Constants
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
@@ -36,7 +45,6 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
 static void CursorPosCallback(GLFWwindow* window, double x, double y);
 static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode);
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-
 // Material pointer
 std::unique_ptr<Material> m_terrainMaterial;
 
@@ -54,6 +62,7 @@ public:
 
     void Init()
     {
+        
         CreateWindow();
         InitCallbacks();
         InitCamera();
@@ -161,6 +170,7 @@ public:
         if (objectLoader) {
             mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
             objectLoader->render(mvpMatrix);
+
         }
     }
 
@@ -179,7 +189,10 @@ public:
                 case GLFW_KEY_C:
                     camera->Print();
                     break;
+                    
             }
+
+            std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
         }
         camera->OnKeyboard(key);
     }
@@ -223,6 +236,31 @@ private:
         glfwSetCursorPos(window->getHandle(), WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
     }
 
+    void InitObjects(){
+        std::cout << "loading objects.." << std::endl;
+      
+        // Ensure the "Object" shader is loaded and get its program ID
+        std::shared_ptr<Shader> objShader = ShaderManager::getInstance().getShader("Object");
+        if (!objShader) {
+            std::cerr << "Error: Object shader not found during InitObjects!" << std::endl;
+            return; // Or handle error appropriately
+        }
+        GLuint objectShaderProgramID = objShader->getProgramID();
+
+        objectLoader = new ObjectLoader(objectShaderProgramID); 
+        if (objectLoader) {
+            // Load only mesh 4 (assuming this is the main house model)
+            std::vector<unsigned int> meshesToLoad = {4};
+            if (!objectLoader->load("../Objects/model.obj", meshesToLoad)) {
+                std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
+            } else {
+                std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
+            }
+        } else {
+            std::cerr << "Failed to create ObjectLoader instance." << std::endl;
+        }
+    }
+
     void InitCamera()
     {
         vec3 cameraPos = vec3(625.0f, 150.0f, 625.0f);
@@ -232,6 +270,7 @@ private:
         float zNear = 0.1f;
         float zFar = 2000.0f;
         PersProjInfo persProjInfo = {fov, static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT), zNear, zFar};
+
         camera = std::make_unique<Camera>(persProjInfo, cameraPos, cameraTarget, cameraUp);
     }
 
@@ -351,7 +390,8 @@ private:
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
-    std::shared_ptr<Shader> shader;
+    std::shared_ptr<Shader> terrainShader; // Renamed from shader
+    std::shared_ptr<Shader> objectShader;  // For loaded objects
     std::unique_ptr<TerrainGrid> grid;
     std::unique_ptr<Light> light; // The actual light object used by shaders
     std::unique_ptr<CelestialLightManager> m_celestialLightManager; // <<< ADD LIGHT MANAGER MEMBER
@@ -380,6 +420,8 @@ static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int 
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
     if (g_app) g_app->ResizeCB(width, height);
 }
+
+
 
 int main(int argc, char** argv)
 {

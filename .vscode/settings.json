@@ -47,6 +47,10 @@
         "sstream": "cpp",
         "stack": "cpp",
         "variant": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "__threading_support": "cpp",
+        "cstddef": "cpp",
+        "ostream": "cpp",
+        "tuple": "cpp"
     }
 }
