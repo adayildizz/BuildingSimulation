@@ -233,11 +233,11 @@ private:
         std::cout << "loading objects.." << std::endl;
        GLuint objectShaderProgramID = shader->getProgramID();
 
-        objectLoader = new ObjectLoader(objectShaderProgramID); 
+        objectLoader = new ObjectLoader(objectShaderProgramID);
         if (objectLoader) {
             // Load only mesh 4 (assuming 0-indexed, if it's the 5th mesh, use 4. If it's literally named mesh 4, this is how we did it before)
-            std::vector<unsigned int> meshesToLoad = {4}; 
-            if (!objectLoader->load("../Objects/model.obj", meshesToLoad)) {
+            std::vector<unsigned int> meshesToLoad = {4};
+            if (!objectLoader->load("../Objects/cottage_obj.obj", meshesToLoad)) {
                 std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
             } else {
                 std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
@@ -357,8 +357,6 @@ private:
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
-    std::shared_ptr<Shader> terrainShader; // Renamed from shader
-    std::shared_ptr<Shader> objectShader;  // For loaded objects
     std::unique_ptr<TerrainGrid> grid;
     std::unique_ptr<Light> light; // The actual light object used by shaders
     std::unique_ptr<CelestialLightManager> m_celestialLightManager; // <<< ADD LIGHT MANAGER MEMBER
