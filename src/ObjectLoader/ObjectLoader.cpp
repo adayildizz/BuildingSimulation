@@ -6,11 +6,6 @@
 // Constructor
 ObjectLoader::ObjectLoader(GLuint shaderProgram) : program(shaderProgram) {
     createDefaultWhiteTexture();
-    // Get ModelView uniform location once
-    modelViewUniformLocation = glGetUniformLocation(program, "ModelView");
-    if (modelViewUniformLocation == -1) {
-        std::cerr << "Warning: ModelView uniform not found in shader program." << std::endl;
-    }
 }
 
 // Destructor
@@ -46,10 +41,9 @@ void ObjectLoader::createDefaultWhiteTexture() {
 
 bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned int>& specificMeshesToLoad) {
     cleanup(); // Clean up any previously loaded model data
-    stbi_set_flip_vertically_on_load(true);
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filename, 
-        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs);
+        aiProcess_Triangulate | aiProcess_GenNormals);
 
     if (!scene || !scene->HasMeshes()) {
         std::cerr << "Assimp load error for '" << filename << "': " << importer.GetErrorString() << std::endl;
@@ -76,7 +70,6 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         vec4 currentMeshMaterialColor(0.8f, 0.8f, 0.8f, 1.0f); // Default color
         GLuint currentMeshTextureID = defaultWhiteTextureID;
 
-        // Material and Texture loading (simplified for brevity, adapt from your main.cpp)
         if (scene->HasMaterials() && mesh->mMaterialIndex >= 0) {
             aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
             aiColor4D diffuseColorProperty;
@@ -88,6 +81,8 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
             aiString texturePath;
             if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS) {
                 std::string texPathStr = texturePath.C_Str();
+                std::cout << "ObjectLoader: Original texture path from model: " << texPathStr << std::endl; // DEBUG
+
                 // Basic path handling: assume textures are relative to the model or in a known dir.
                 // You might need to adjust this path based on your project structure.
                 // For example, if model is in 'models/' and textures in 'models/textures/'
@@ -100,6 +95,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
                     modelDir = filename.substr(0, lastSlash + 1);
                 }
                 std::string fullTexPath = modelDir + texPathStr;
+                std::cout << "ObjectLoader: Attempting to load texture from: " << fullTexPath << std::endl; // DEBUG
 
                 int texWidth, texHeight, texChannels;
                 unsigned char *data = stbi_load(fullTexPath.c_str(), &texWidth, &texHeight, &texChannels, 0);
@@ -128,7 +124,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         // Vertex data
         for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
             aiVector3D p = mesh->mVertices[i];
-            positions.push_back(vec4(p.x, p.y, p.z, 1.0));
+            positions.push_back(vec4(p.x, p.y, p.z,1.0f));
             aiVector3D n = mesh->HasNormals() ? mesh->mNormals[i] : aiVector3D(0, 1, 0); // Default normal if not present
             normals.push_back(vec3(n.x, n.y, n.z));
             if (mesh->HasTextureCoords(0)) {
@@ -151,9 +147,9 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         for (size_t i = 0; i < positions.size(); ++i) {
             interleaved.insert(interleaved.end(), {
                 positions[i].x, positions[i].y, positions[i].z, positions[i].w,
+                texCoords[i].x, texCoords[i].y,
                 normals[i].x, normals[i].y, normals[i].z,
-                currentMeshMaterialColor.x, currentMeshMaterialColor.y, currentMeshMaterialColor.z, currentMeshMaterialColor.w, // Using loaded/default material color
-                texCoords[i].x, texCoords[i].y
+                currentMeshMaterialColor.x, currentMeshMaterialColor.y, currentMeshMaterialColor.z, currentMeshMaterialColor.w // Using loaded/default material color
             });
         }
 
@@ -168,30 +164,25 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-        GLsizei stride = sizeof(float) * (4 + 3 + 4 + 2); // Pos(4) + Normal(3) + Color(4) + TexCoord(2)
+        GLsizei stride = sizeof(float) * (4 + 2 + 3 + 4); // Pos(4) + TexCoord(2) + Normal(3) + Color(4) = 13 floats
 
-        GLuint vPosition = glGetAttribLocation(program, "vPosition");
-        if (vPosition != -1) {
-            glEnableVertexAttribArray(vPosition);
-            glVertexAttribPointer(vPosition, 4, GL_FLOAT, GL_FALSE, stride, (void*)0);
-        }
-        GLuint vNormal = glGetAttribLocation(program, "vNormal");
-        if (vNormal != -1) {
-            glEnableVertexAttribArray(vNormal);
-            glVertexAttribPointer(vNormal, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 4));
-        }
-        GLuint vColorLocation = glGetAttribLocation(program, "vColor");
-        if (vColorLocation != -1) {
-            glEnableVertexAttribArray(vColorLocation);
-            glVertexAttribPointer(vColorLocation, 4, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 7));
-        }
-        GLuint vTexCoordLocation = glGetAttribLocation(program, "vTexCoord");
-        if (vTexCoordLocation != -1) {
-            glEnableVertexAttribArray(vTexCoordLocation);
-            glVertexAttribPointer(vTexCoordLocation, 2, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 11));
-        } else {
-             std::cerr << "Warning: vTexCoord_attr not found in shader for mesh " << targetMeshIdx << std::endl;
-        }
+        // Use layout locations instead of glGetAttribLocation for better reliability
+        // Layout 0: vPosition (vec4) at offset 0
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, stride, (void*)0);
+        
+        // Layout 1: vTexCoord (vec2) at offset 4 * sizeof(float)
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 4));
+        
+        // Layout 2: vNormal (vec3) at offset 6 * sizeof(float)
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 6));
+        
+        // Layout 3: vColor (vec4) at offset 9 * sizeof(float)
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 9));
+        
 
         glBindVertexArray(0);
 
@@ -204,18 +195,15 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
     return true;
 }
 
-void ObjectLoader::render(const mat4& modelViewMatrix) {
-
-    glUseProgram(program);
-    // Set the ModelView matrix passed from the caller
-    if (modelViewUniformLocation != -1) {
-        glUniformMatrix4fv(modelViewUniformLocation, 1, GL_TRUE, modelViewMatrix);
-    }
+void ObjectLoader::render() {
+    // Critical: Set u_isTerrain to false to use object texture instead of terrain blending
+    glUniform1i(glGetUniformLocation(program, "u_isTerrain"), 0);
 
     for (size_t i = 0; i < vaos.size(); ++i) {
-        glActiveTexture(GL_TEXTURE0);
+        // Use texture unit 4 to avoid conflicts with terrain textures (units 0-3)
+        glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_2D, meshTextureIDs[i]);
-        glUniform1i(glGetUniformLocation(program, "gTextureHeight0"), 0);
+        glUniform1i(glGetUniformLocation(program, "objectTexture"), 4);
 
         glBindVertexArray(vaos[i]);
         glDrawElements(GL_TRIANGLES, indexCounts[i], GL_UNSIGNED_INT, 0);

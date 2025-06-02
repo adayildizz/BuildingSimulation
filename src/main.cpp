@@ -162,7 +162,7 @@ public:
 
         if (objectLoader) {
             mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
-            objectLoader->render(mvpMatrix);
+            objectLoader->render();
 
         }
     }
@@ -185,7 +185,7 @@ public:
                     
             }
 
-            std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
+            //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
         }
         camera->OnKeyboard(key);
     }
