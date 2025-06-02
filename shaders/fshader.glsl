@@ -2,15 +2,19 @@
 
 layout(location = 0) out vec4 FragColor;
 
+in vec4 baseColor;
 in vec2 outTexCoord;      // Texture coordinates from vertex shader
 in vec3 outWorldPos;      // World position from vertex shader
 in vec3 outNormal_world;  // World-space normal from vertex shader
 
 // Texture samplers for terrain layers
-uniform sampler2D gTextureHeight0; // Will also be used for object's diffuse texture
+uniform sampler2D gTextureHeight0;
 uniform sampler2D gTextureHeight1;
 uniform sampler2D gTextureHeight2;
 uniform sampler2D gTextureHeight3;
+
+// Separate texture sampler for objects
+uniform sampler2D objectTexture;
 
 // Height thresholds for blending textures (for terrain)
 uniform float gHeight0;
@@ -81,9 +85,8 @@ void main()
     if (u_isTerrain) {
         albedo = CalculateBlendedTextureColor();
     } else {
-        // Object rendering: Use the texture bound to unit 0 (gTextureHeight0)
-        // Ensure your ObjectLoader binds the object's diffuse texture to GL_TEXTURE0
-        albedo = texture(gTextureHeight0, outTexCoord);
+        // Object rendering: Use the dedicated object texture sampler
+        albedo = texture(objectTexture, outTexCoord);
     }
 
     vec3 N_world = normalize(outNormal_world);

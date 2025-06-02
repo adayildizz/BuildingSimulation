@@ -15,7 +15,7 @@ public:
     ~ObjectLoader();
 
     bool load(const std::string& filename, const std::vector<unsigned int>& meshesToLoadIndices = {});
-    void render(const mat4& modelViewMatrix); // Modified to accept ModelView matrix
+    void render();
 
 private:
     void createDefaultWhiteTexture();
@@ -32,8 +32,6 @@ private:
 
     GLuint defaultWhiteTextureID;
 
-    // Store ModelView uniform location, fetched in constructor
-    GLuint modelViewUniformLocation; 
 };
 
 #endif // OBJECT_LOADER_H
