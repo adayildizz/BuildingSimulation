@@ -1,10 +1,11 @@
 #include "ObjectLoader.h"
 #include "../../include/stb/stb_image.h"
 #include <iostream>
-#include <algorithm> // Required for std::find
+#include <algorithm> 
+#include "../Core/Shader.h"// Required for std::find
 
 // Constructor
-ObjectLoader::ObjectLoader(GLuint shaderProgram) : program(shaderProgram) {
+ObjectLoader::ObjectLoader(Shader& shaderProgram) : program(shaderProgram) {
     createDefaultWhiteTexture();
 }
 
@@ -63,6 +64,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
             continue;
         }
         aiMesh* mesh = scene->mMeshes[targetMeshIdx];
+        std::cout << "Processing mesh " << targetMeshIdx << " with material index: " << mesh->mMaterialIndex << std::endl;
         std::vector<vec4> positions;
         std::vector<vec3> normals;
         std::vector<vec2> texCoords;
@@ -197,13 +199,13 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
 
 void ObjectLoader::render() {
     // Critical: Set u_isTerrain to false to use object texture instead of terrain blending
-    glUniform1i(glGetUniformLocation(program, "u_isTerrain"), 0);
+    glUniform1i(glGetUniformLocation(program.getProgramID(), "u_isTerrain"), 0);
 
     for (size_t i = 0; i < vaos.size(); ++i) {
         // Use texture unit 4 to avoid conflicts with terrain textures (units 0-3)
         glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_2D, meshTextureIDs[i]);
-        glUniform1i(glGetUniformLocation(program, "objectTexture"), 4);
+        glUniform1i(glGetUniformLocation(program.getProgramID(), "objectTexture"), 4);
 
         glBindVertexArray(vaos[i]);
         glDrawElements(GL_TRIANGLES, indexCounts[i], GL_UNSIGNED_INT, 0);

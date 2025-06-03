@@ -7,29 +7,32 @@
 #include <assimp/postprocess.h>
 #include <vector>
 #include <string>
-#include <iostream> // For error messages
+#include <iostream> 
+#include "../Core/Shader.h" //For error messages
 
 class ObjectLoader {
 public:
-    ObjectLoader(GLuint shaderProgram);
+    ObjectLoader(Shader& shaderProgram);
     ~ObjectLoader();
 
     bool load(const std::string& filename, const std::vector<unsigned int>& meshesToLoadIndices = {});
     void render();
+    Shader program;
 
 private:
     void createDefaultWhiteTexture();
     void cleanup(); // Helper for destructor and potential re-load
 
-    GLuint program; // Shader program ID
+     // Shader program ID
     std::vector<GLuint> vaos, vbos, ebos;
     std::vector<int> indexCounts;
-    std::vector<GLuint> meshTextureIDs; // Stores texture IDs for each mesh
+    std::vector<GLuint> meshTextureIDs;
+     // Stores texture IDs for each mesh
     // meshColors is not directly used for rendering if textures are primary, 
     // but could be if shaders support vertex colors or untextured materials.
     // For now, assuming texture or default white.
     // std::vector<vec4> meshColors; 
-
+    
     GLuint defaultWhiteTextureID;
 
 };

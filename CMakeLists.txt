@@ -26,6 +26,7 @@ set(SOURCES
     src/Grid/GridMesh.cpp
     src/Grid/TerrainGenerator.cpp
     src/ObjectLoader/ObjectLoader.cpp
+    src/ObjectLoader/GameObject.cpp
 )
 
 set(ASSIMP_SRC_DIR ${CMAKE_SOURCE_DIR}/include/assimp)

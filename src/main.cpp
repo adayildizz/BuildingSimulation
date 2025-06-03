@@ -6,6 +6,7 @@
 #include "Core/Texture.h"
 #include "Core/light.h"
 #include "Core/Material.h"
+#include "ObjectLoader/GameObject.h"
 #include "ObjectLoader/ObjectLoader.h"
 #include "Angel.h"
 #include "Core/CelestialLightManager.h"
@@ -31,6 +32,8 @@ const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
 const int GRID_SIZE = 250; // Size of the grid
 ObjectLoader* objectLoader;
+
+GameObject* gameObject;
 
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -146,25 +149,24 @@ public:
 
         // --- Render Objects ---
         shader->setUniform("u_isTerrain", false);
-
+        
+        // Calculate the model-view matrix for the game object
+        mat4 viewMatrix = camera->GetViewMatrix();
+        mat4 modelViewMatrix = viewMatrix; // You might want to include projection here too
+        
+        
         vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ);
-        float scale = 100.0f;
+        float scale = 100.0f; // Increased scale to make mouse movement more visible
         float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
         float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
-        normX *= scale;
-        normY *= scale;
-
-        mat4 translation_from_cursor = Translate(fixedObjectWorldPos.x + normX, fixedObjectWorldPos.y, fixedObjectWorldPos.z + normY);
-        mat4 objectScaleMatrix = Scale(5.0f,5.0f, 5.0f);
-        mat4 objectModelMatrix = translation_from_cursor * objectScaleMatrix;
-
-        shader->setUniform("gModelMatrix", objectModelMatrix);
-
-        if (objectLoader) {
-            mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
-            objectLoader->render();
-
-        }
+        
+        // Calculate absolute world position based on mouse
+        float worldX = fixedObjectWorldPos.x + (normX * scale);
+        float worldZ = fixedObjectWorldPos.z + (normY * scale);
+        
+        if(gameObject->isInPlacement)gameObject->SetPosition(vec4(worldX, ObjectPosY, worldZ, 1.0f));
+        
+        gameObject->Render();
     }
 
     void KeyboardCB(int key, int action)
@@ -190,6 +192,8 @@ public:
         camera->OnKeyboard(key);
     }
 
+
+
     void PassiveMouseCB(int x, int y)
     {
         mouseX = static_cast<double>(x);
@@ -203,6 +207,7 @@ public:
             if (action == GLFW_PRESS) {
                 camera->UpdateMousePos(x, y);
                 camera->StartRotation();
+                gameObject->isInPlacement = false;
             } else if (action == GLFW_RELEASE) {
                 camera->StopRotation();
             }
@@ -229,22 +234,30 @@ private:
         glfwSetCursorPos(window->getHandle(), WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
     }
 
-    void InitObjects(){
-        std::cout << "loading objects.." << std::endl;
-       GLuint objectShaderProgramID = shader->getProgramID();
+    void PlaceObject() {
+        // Simple object placement - you can modify this to place objects at specific locations
+        // For now, just print a message indicating object placement was attempted
+        
+    }
 
-        objectLoader = new ObjectLoader(objectShaderProgramID);
+    void InitObjects(){
+
+    std::cout << "loading objects.." << std::endl;
+        
+        objectLoader = new ObjectLoader(*shader);
         if (objectLoader) {
-            // Load only mesh 4 (assuming 0-indexed, if it's the 5th mesh, use 4. If it's literally named mesh 4, this is how we did it before)
             std::vector<unsigned int> meshesToLoad = {4};
-            if (!objectLoader->load("../Objects/cottage_obj.obj", meshesToLoad)) {
-                std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
+            if (!objectLoader->load("../Objects/Cottage/cottage_obj.obj", meshesToLoad)) {
+                std::cerr << "Failed to load cottage model with ObjectLoader." << std::endl;
             } else {
-                std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
+                std::cout << "Successfully loaded cottage model." << std::endl;
             }
         } else {
             std::cerr << "Failed to create ObjectLoader instance." << std::endl;
         }
+        gameObject = new GameObject(*objectLoader);
+        gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
+        gameObject->Scale(5.0f);
     }
 
     void InitCamera()
