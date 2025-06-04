@@ -88,3 +88,37 @@ float TerrainGrid::GetMinHeight() const {
 float TerrainGrid::GetMaxHeight() const {
     return m_maxHeight;
 }
+
+float TerrainGrid::GetHeightAtWorldPos(float worldX, float worldZ) const {
+    // Convert world coordinates to grid coordinates
+    float gridX = worldX / GetWorldScale();
+    float gridZ = worldZ / GetWorldScale();
+    
+    // Get the integer grid coordinates
+    int x0 = static_cast<int>(floor(gridX));
+    int z0 = static_cast<int>(floor(gridZ));
+    int x1 = x0 + 1;
+    int z1 = z0 + 1;
+    
+    // Check bounds
+    if (x0 < 0 || x1 >= GetWidth() || z0 < 0 || z1 >= GetDepth()) {
+        return 0.0f; // Return 0 height for out-of-bounds coordinates
+    }
+    
+    // Get fractional parts for interpolation
+    float fx = gridX - x0;
+    float fz = gridZ - z0;
+    
+    // Get heights at four corners
+    float h00 = GetHeight(x0, z0);
+    float h10 = GetHeight(x1, z0);
+    float h01 = GetHeight(x0, z1);
+    float h11 = GetHeight(x1, z1);
+    
+    // Bilinear interpolation
+    float h0 = h00 * (1.0f - fx) + h10 * fx;
+    float h1 = h01 * (1.0f - fx) + h11 * fx;
+    float height = h0 * (1.0f - fz) + h1 * fz;
+    
+    return height;
+}

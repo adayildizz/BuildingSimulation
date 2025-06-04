@@ -315,3 +315,190 @@ mat4 Camera::GetViewPortMatrix() const
     return viewport;
 }
 
+// Helper function to invert a 4x4 matrix
+mat4 Camera::InvertMatrix(const mat4& m) const
+{
+    mat4 inv;
+    float det;
+    
+    inv[0][0] = m[1][1] * m[2][2] * m[3][3] - 
+                m[1][1] * m[2][3] * m[3][2] - 
+                m[2][1] * m[1][2] * m[3][3] + 
+                m[2][1] * m[1][3] * m[3][2] +
+                m[3][1] * m[1][2] * m[2][3] - 
+                m[3][1] * m[1][3] * m[2][2];
+
+    inv[1][0] = -m[1][0] * m[2][2] * m[3][3] + 
+                 m[1][0] * m[2][3] * m[3][2] + 
+                 m[2][0] * m[1][2] * m[3][3] - 
+                 m[2][0] * m[1][3] * m[3][2] - 
+                 m[3][0] * m[1][2] * m[2][3] + 
+                 m[3][0] * m[1][3] * m[2][2];
+
+    inv[2][0] = m[1][0] * m[2][1] * m[3][3] - 
+                m[1][0] * m[2][3] * m[3][1] - 
+                m[2][0] * m[1][1] * m[3][3] + 
+                m[2][0] * m[1][3] * m[3][1] + 
+                m[3][0] * m[1][1] * m[2][3] - 
+                m[3][0] * m[1][3] * m[2][1];
+
+    inv[3][0] = -m[1][0] * m[2][1] * m[3][2] + 
+                 m[1][0] * m[2][2] * m[3][1] +
+                 m[2][0] * m[1][1] * m[3][2] - 
+                 m[2][0] * m[1][2] * m[3][1] - 
+                 m[3][0] * m[1][1] * m[2][2] + 
+                 m[3][0] * m[1][2] * m[2][1];
+
+    inv[0][1] = -m[0][1] * m[2][2] * m[3][3] + 
+                 m[0][1] * m[2][3] * m[3][2] + 
+                 m[2][1] * m[0][2] * m[3][3] - 
+                 m[2][1] * m[0][3] * m[3][2] - 
+                 m[3][1] * m[0][2] * m[2][3] + 
+                 m[3][1] * m[0][3] * m[2][2];
+
+    inv[1][1] = m[0][0] * m[2][2] * m[3][3] - 
+                m[0][0] * m[2][3] * m[3][2] - 
+                m[2][0] * m[0][2] * m[3][3] + 
+                m[2][0] * m[0][3] * m[3][2] + 
+                m[3][0] * m[0][2] * m[2][3] - 
+                m[3][0] * m[0][3] * m[2][2];
+
+    inv[2][1] = -m[0][0] * m[2][1] * m[3][3] + 
+                 m[0][0] * m[2][3] * m[3][1] + 
+                 m[2][0] * m[0][1] * m[3][3] - 
+                 m[2][0] * m[0][3] * m[3][1] - 
+                 m[3][0] * m[0][1] * m[2][3] + 
+                 m[3][0] * m[0][3] * m[2][1];
+
+    inv[3][1] = m[0][0] * m[2][1] * m[3][2] - 
+                m[0][0] * m[2][2] * m[3][1] - 
+                m[2][0] * m[0][1] * m[3][2] + 
+                m[2][0] * m[0][2] * m[3][1] + 
+                m[3][0] * m[0][1] * m[2][2] - 
+                m[3][0] * m[0][2] * m[2][1];
+
+    inv[0][2] = m[0][1] * m[1][2] * m[3][3] - 
+                m[0][1] * m[1][3] * m[3][2] - 
+                m[1][1] * m[0][2] * m[3][3] + 
+                m[1][1] * m[0][3] * m[3][2] + 
+                m[3][1] * m[0][2] * m[1][3] - 
+                m[3][1] * m[0][3] * m[1][2];
+
+    inv[1][2] = -m[0][0] * m[1][2] * m[3][3] + 
+                 m[0][0] * m[1][3] * m[3][2] + 
+                 m[1][0] * m[0][2] * m[3][3] - 
+                 m[1][0] * m[0][3] * m[3][2] - 
+                 m[3][0] * m[0][2] * m[1][3] + 
+                 m[3][0] * m[0][3] * m[1][2];
+
+    inv[2][2] = m[0][0] * m[1][1] * m[3][3] - 
+                m[0][0] * m[1][3] * m[3][1] - 
+                m[1][0] * m[0][1] * m[3][3] + 
+                m[1][0] * m[0][3] * m[3][1] + 
+                m[3][0] * m[0][1] * m[1][3] - 
+                m[3][0] * m[0][3] * m[1][1];
+
+    inv[3][2] = -m[0][0] * m[1][1] * m[3][2] + 
+                 m[0][0] * m[1][2] * m[3][1] + 
+                 m[1][0] * m[0][1] * m[3][2] - 
+                 m[1][0] * m[0][2] * m[3][1] - 
+                 m[3][0] * m[0][1] * m[1][2] + 
+                 m[3][0] * m[0][2] * m[1][1];
+
+    inv[0][3] = -m[0][1] * m[1][2] * m[2][3] + 
+                 m[0][1] * m[1][3] * m[2][2] + 
+                 m[1][1] * m[0][2] * m[2][3] - 
+                 m[1][1] * m[0][3] * m[2][2] - 
+                 m[2][1] * m[0][2] * m[1][3] + 
+                 m[2][1] * m[0][3] * m[1][2];
+
+    inv[1][3] = m[0][0] * m[1][2] * m[2][3] - 
+                m[0][0] * m[1][3] * m[2][2] - 
+                m[1][0] * m[0][2] * m[2][3] + 
+                m[1][0] * m[0][3] * m[2][2] + 
+                m[2][0] * m[0][2] * m[1][3] - 
+                m[2][0] * m[0][3] * m[1][2];
+
+    inv[2][3] = -m[0][0] * m[1][1] * m[2][3] + 
+                 m[0][0] * m[1][3] * m[2][1] + 
+                 m[1][0] * m[0][1] * m[2][3] - 
+                 m[1][0] * m[0][3] * m[2][1] - 
+                 m[2][0] * m[0][1] * m[1][3] + 
+                 m[2][0] * m[0][3] * m[1][1];
+
+    inv[3][3] = m[0][0] * m[1][1] * m[2][2] - 
+                m[0][0] * m[1][2] * m[2][1] - 
+                m[1][0] * m[0][1] * m[2][2] + 
+                m[1][0] * m[0][2] * m[2][1] + 
+                m[2][0] * m[0][1] * m[1][2] - 
+                m[2][0] * m[0][2] * m[1][1];
+
+    det = m[0][0] * inv[0][0] + m[0][1] * inv[1][0] + m[0][2] * inv[2][0] + m[0][3] * inv[3][0];
+
+    if (det == 0)
+        return mat4(); // Return identity matrix if not invertible
+
+    det = 1.0 / det;
+
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++)
+            inv[i][j] = inv[i][j] * det;
+
+    return inv;
+}
+
+vec3 Camera::ScreenToWorldRay(float screenX, float screenY) const
+{
+    // Convert screen coordinates to normalized device coordinates (-1 to 1)
+    // Note: GLFW uses top-left origin, OpenGL uses bottom-left
+    float x = (2.0f * screenX) / m_persProjInfo.Width - 1.0f;
+    float y = 1.0f - (2.0f * screenY) / m_persProjInfo.Height; // Flip Y coordinate
+    
+    // Create ray endpoints in NDC space
+    vec4 rayStart_NDC = vec4(x, y, -1.0f, 1.0f); // Near plane
+    vec4 rayEnd_NDC = vec4(x, y, 1.0f, 1.0f);    // Far plane
+    
+    // Convert to world space
+    mat4 invViewProjMatrix = InvertMatrix(GetViewProjMatrix());
+    
+    vec4 rayStart_world = invViewProjMatrix * rayStart_NDC;
+    vec4 rayEnd_world = invViewProjMatrix * rayEnd_NDC;
+    
+    // Perspective divide
+    rayStart_world /= rayStart_world.w;
+    rayEnd_world /= rayEnd_world.w;
+    
+    // Calculate ray direction - fix the vec4 to vec3 conversion
+    vec3 rayDirection = normalize(vec3(rayEnd_world.x, rayEnd_world.y, rayEnd_world.z) - 
+                                 vec3(rayStart_world.x, rayStart_world.y, rayStart_world.z));
+    
+    return rayDirection;
+}
+
+bool Camera::RayTerrainIntersection(const vec3& rayOrigin, const vec3& rayDirection, 
+                                   float minY, float maxY, vec3& intersectionPoint) const
+{
+    // Simple ray-plane intersection for Y-plane
+    // We'll check if the ray intersects with a horizontal plane at terrain level
+    
+    // If ray direction is horizontal (no Y component), no intersection with terrain
+    if (abs(rayDirection.y) < 0.001f) {
+        return false;
+    }
+    
+    // Calculate intersection with a plane at average terrain height
+    float averageTerrainHeight = (minY + maxY) / 2.0f;
+    
+    float t = (averageTerrainHeight - rayOrigin.y) / rayDirection.y;
+    
+    // If t is negative, intersection is behind the camera
+    if (t < 0) {
+        return false;
+    }
+    
+    // Calculate intersection point
+    intersectionPoint = rayOrigin + t * rayDirection;
+    
+    return true;
+}
+

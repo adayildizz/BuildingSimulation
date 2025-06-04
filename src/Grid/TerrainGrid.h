@@ -26,6 +26,9 @@ public:
     // Implementation of the pure virtual method from BaseGrid
     virtual float GetHeight(int x, int z) const override;
 
+    // Get height at world coordinates with interpolation
+    float GetHeightAtWorldPos(float worldX, float worldZ) const;
+
     // Getters for terrain properties
     TerrainType GetTerrainType() const;
     const TerrainLayerInfo& GetLayerInfo() const;
@@ -41,4 +44,4 @@ private:
     float m_maxHeight;
 
     void CalculateMinMaxHeights(); // Helper to calculate and store min/max
-}; 
+};
