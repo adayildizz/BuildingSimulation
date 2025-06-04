@@ -10,6 +10,7 @@
 #include "ObjectLoader/ObjectLoader.h"
 #include "Angel.h"
 #include "Core/CelestialLightManager.h"
+#include "ObjectLoader/GameObjectManager.h"
 
 #include <iostream>
 #include <memory>
@@ -32,8 +33,7 @@ const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
 const int GRID_SIZE = 250; // Size of the grid
 ObjectLoader* objectLoader;
-
-GameObject* gameObject;
+GameObject* gameObject; //SelectedGameObject
 
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -43,6 +43,7 @@ static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 // Global Pointers
 std::unique_ptr<Material> m_terrainMaterial;
 std::shared_ptr<Shader> shader;
+GameObjectManager* objectManager;
 
 // Grid demo application
 class GridDemo
@@ -166,7 +167,7 @@ public:
         
         if(gameObject->isInPlacement)gameObject->SetPosition(vec4(worldX, ObjectPosY, worldZ, 1.0f));
         
-        gameObject->Render();
+        objectManager->RenderAll();
     }
 
     void KeyboardCB(int key, int action)
@@ -184,6 +185,15 @@ public:
                 case GLFW_KEY_C:
                     camera->Print();
                     break;
+                case GLFW_KEY_N:
+                    //TODO:this should be in a thread or a process !!!!!
+                    
+                    ObjectLoader* obj = new ObjectLoader(*shader);
+                    obj->load("../Objects/Tree/Tree1.obj", {0});
+                    int index = objectManager->CreateNewObject(*obj);
+                    gameObject = objectManager->GetGameObject(index);
+                    gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
+                    gameObject->Scale(10.0f);
                     
             }
 
@@ -242,22 +252,14 @@ private:
 
     void InitObjects(){
 
-    std::cout << "loading objects.." << std::endl;
-        
+        std::cout << "loading objects.." << std::endl;
+        objectManager = new GameObjectManager();
         objectLoader = new ObjectLoader(*shader);
-        if (objectLoader) {
-            std::vector<unsigned int> meshesToLoad = {4};
-            if (!objectLoader->load("../Objects/Cottage/cottage_obj.obj", meshesToLoad)) {
-                std::cerr << "Failed to load cottage model with ObjectLoader." << std::endl;
-            } else {
-                std::cout << "Successfully loaded cottage model." << std::endl;
-            }
-        } else {
-            std::cerr << "Failed to create ObjectLoader instance." << std::endl;
-        }
-        gameObject = new GameObject(*objectLoader);
-        gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
-        gameObject->Scale(5.0f);
+        objectLoader->load("../Objects/Cottage/cottage_obj.obj", {4});
+        int objectIndex = objectManager->CreateNewObject(*objectLoader);
+        gameObject = objectManager->GetGameObject(objectIndex);
+        //gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
+        gameObject->Scale(10.0f);
     }
 
     void InitCamera()
