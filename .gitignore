@@ -54,3 +54,5 @@ Makefile
 *.out
 *.app 
 
+/external
+/.vs
