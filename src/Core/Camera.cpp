@@ -8,10 +8,11 @@ Camera::Camera(const PersProjInfo& persPositionInfo, const vec3& Pos, const vec3
     InitCamera(persPositionInfo, Pos, Target, Up);
 }
 
+
 void Camera::InitCamera(const PersProjInfo& persPositionInfo, const vec3& Pos, const vec3& Target, const vec3& Up)
 {
     m_persProjInfo = persPositionInfo;
-    m_projMatrix = Perspective(m_persProjInfo.FOV, m_persProjInfo.Height / m_persProjInfo.Width, m_persProjInfo.zNear, m_persProjInfo.zFar);
+    m_projMatrix = Perspective(m_persProjInfo.FOV, m_persProjInfo.Width/ m_persProjInfo.Height, m_persProjInfo.zNear, m_persProjInfo.zFar);
 
     m_windowHeight = (int)m_persProjInfo.Height;
     m_windowWidth = (int)m_persProjInfo.Width;
@@ -285,15 +286,18 @@ void Camera::SetSpeed(float speed)
 
 mat4 Camera::GetViewMatrix() const
 {
-    vec3 targetPos = m_pos + m_target;
-    return LookAt(vec4(m_pos, 1.0f), vec4(targetPos, 1.0f), vec4(m_up, 0.0f));
+    vec3 targetPos = m_pos + m_target;  
+    return LookAt(m_pos, targetPos, m_up);
 }
+
 
 mat4 Camera::GetViewProjMatrix() const
 {
     mat4 viewMatrix = GetViewMatrix();
     return m_projMatrix * viewMatrix;
 }
+
+vec3 Camera::GetPosition() const { return m_pos; }
 
 mat4 Camera::GetViewPortMatrix() const
 {

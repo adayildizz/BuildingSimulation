@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../include/Angel.h"
+#include "Angel.h"
 #include <string>
 #include <unordered_map>
 #include <memory>

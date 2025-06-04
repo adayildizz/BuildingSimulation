@@ -1,4 +1,4 @@
-#include "../../include/stb/stb_image.h"
+#include "../include/stb/stb_image.h"
 #include "Texture.h"
 
 Texture::Texture(GLenum TextureTarget, const std::string& FileName)
@@ -20,10 +20,17 @@ bool Texture::Load()
 
     glGenTextures(1, &m_textureObj);
     glBindTexture(m_textureTarget, m_textureObj);
-    if (m_textureTarget == GL_TEXTURE_2D)
+    if (m_textureTarget == GL_TEXTURE_2D) 
     {
-        glTexImage2D(m_textureTarget, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image_data);
+        GLenum format = GL_RGB;
+        GLenum internalFormat = GL_RGB;
+        if (bpp == 4) {
+            format = GL_RGBA;
+            internalFormat = GL_RGBA;
+        }
+        glTexImage2D(m_textureTarget, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, image_data);
     }
+    
     else
     {
         std::cerr << "Unsupported texture target" << std::endl;

@@ -4,46 +4,85 @@
 #include "Core/Camera.h"
 #include "Grid/TerrainGrid.h"
 #include "Core/Texture.h"
-#include "../include/Angel.h"
+#include "Core/light.h"
+#include "Core/Material.h"
+#include "ObjectLoader/ObjectLoader.h"
+#include "Angel.h"
+#include "Core/CelestialLightManager.h"
+
 #include <iostream>
 #include <memory>
-#include <vector> // For std::vector to hold texture names and heights temporarily
-#include <string> // For std::string
-#include <cstdlib> // Added for srand
-#include <ctime>   // Added for time
+
+#include <vector>
+#include <string>
+#include <cstdlib>
+#include <ctime>
+#include <cmath>
+
+//global mouse pos
+double mouseX = 0.0f;
+double mouseY = 0.0f;
+float objectPosX = 500.0f;
+float ObjectPosY = 10.0f;
+float ObjectPosZ = 600.0f;
 
 // Constants
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
 const int GRID_SIZE = 250; // Size of the grid
+ObjectLoader* objectLoader;
 
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void CursorPosCallback(GLFWwindow* window, double x, double y);
 static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode);
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
+// Global Pointers
+std::unique_ptr<Material> m_terrainMaterial;
+std::shared_ptr<Shader> shader;
 
 // Grid demo application
 class GridDemo
 {
 public:
     GridDemo() = default;
-    ~GridDemo() {}
+    ~GridDemo() {
+        if (objectLoader) {
+            delete objectLoader;
+            objectLoader = nullptr;
+        }
+    }
 
     void Init()
     {
+        
         CreateWindow();
         InitCallbacks();
         InitCamera();
+        InitMaterial();
         InitShader();
         InitGrid();
+        InitObjects();
+        InitLight();
+        m_celestialLightManager = std::make_unique<CelestialLightManager>(); // INITIALIZE LIGHT MANAGER
     }
 
     void Run()
     {
+        static double lastFrameTime = glfwGetTime();
+
         while (!window->shouldClose()) {
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            double currentFrameTime = glfwGetTime();
+            float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
+            lastFrameTime = currentFrameTime;
+
+            // Update the CelestialLightManager
+            if (m_celestialLightManager) {
+                m_celestialLightManager->Update(deltaTime);
+            }
+            
             RenderScene();
+
             window->pollEvents();
             window->swapBuffers();
         }
@@ -51,24 +90,81 @@ public:
 
     void RenderScene()
     {
-        // Get the view projection matrix
-        mat4 cameraMatrix = camera->GetViewProjMatrix(); 
+        // --- Get Sky Color and Configure Light from CelestialLightManager ---
+        vec3 currentSkyColor = vec3(0.0f); // Default to black if manager not ready
+        if (m_celestialLightManager) {
+            currentSkyColor = m_celestialLightManager->GetCurrentSkyColor();
+            if (light) { // light is the std::unique_ptr<Light>
+                m_celestialLightManager->ConfigureLight(light.get());
+            }
+        }
+        
+        glClearColor(currentSkyColor.x, currentSkyColor.y, currentSkyColor.z, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // Use the shader
+
+        // Use the unified shader for all rendering
         shader->use();
-        shader->setUniform("gVP", cameraMatrix);
+
+        // --- Set Global Uniforms (used by both terrain and objects) ---
+        mat4 viewProjMatrix = camera->GetViewProjMatrix();
+        shader->setUniform("gVP", viewProjMatrix);
+        shader->setUniform("gViewPosition_world", camera->GetPosition());
+
+        // Light Uniforms (The 'light' object is now configured by CelestialLightManager)
+        if (light && shader->isValid()) {
+            GLuint shaderID = shader->getProgramID();
+            GLint ambientIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.ambientIntensity");
+            GLint ambientColorLoc     = glGetUniformLocation(shaderID, "directionalLight.color");
+            GLint diffuseIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.diffuseIntensity");
+            GLint directionLoc        = glGetUniformLocation(shaderID, "directionalLight.direction");
+            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc); // Use the configured light
+        }
+
+        // --- Render Terrain ---
+        shader->setUniform("u_isTerrain", true);
+
+        if (m_terrainMaterial && shader->isValid()) {
+            GLuint shaderID = shader->getProgramID();
+            GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
+            GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
+            m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
+        }
         shader->setUniform("gMinHeight", m_minTerrainHeight);
         shader->setUniform("gMaxHeight", m_maxTerrainHeight);
+        mat4 terrainModelMatrix = mat4(1.0f);
+        shader->setUniform("gModelMatrix", terrainModelMatrix);
 
         for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
             if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
-                m_terrainTextures[i]->Bind(GL_TEXTURE0 + i);
+                m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
                 shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
                 shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
             }
         }
-
         grid->Render();
+
+        // --- Render Objects ---
+        shader->setUniform("u_isTerrain", false);
+
+        vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ);
+        float scale = 100.0f;
+        float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
+        float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
+        normX *= scale;
+        normY *= scale;
+
+        mat4 translation_from_cursor = Translate(fixedObjectWorldPos.x + normX, fixedObjectWorldPos.y, fixedObjectWorldPos.z + normY);
+        mat4 objectScaleMatrix = Scale(5.0f,5.0f, 5.0f);
+        mat4 objectModelMatrix = translation_from_cursor * objectScaleMatrix;
+
+        shader->setUniform("gModelMatrix", objectModelMatrix);
+
+        if (objectLoader) {
+            mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
+            objectLoader->render();
+
+        }
     }
 
     void KeyboardCB(int key, int action)
@@ -79,27 +175,25 @@ public:
                 case GLFW_KEY_Q:
                     glfwSetWindowShouldClose(window->getHandle(), GLFW_TRUE);
                     break;
-
                 case GLFW_KEY_B:
                     m_isWireframe = !m_isWireframe;
-                    if (m_isWireframe) {
-                        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-                    } else {
-                        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-                    }
+                    glPolygonMode(GL_FRONT_AND_BACK, m_isWireframe ? GL_LINE : GL_FILL);
                     break;
-
                 case GLFW_KEY_C:
                     camera->Print();
                     break;
+                    
             }
+
+            //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
         }
-        
         camera->OnKeyboard(key);
     }
 
     void PassiveMouseCB(int x, int y)
     {
+        mouseX = static_cast<double>(x);
+        mouseY = static_cast<double>(y);
         camera->OnMouse(x, y);
     }
 
@@ -119,12 +213,11 @@ public:
     {
         glViewport(0, 0, width, height);
     }
-    
 
 private:
     void CreateWindow()
     {
-        window = std::make_unique<Window>(WINDOW_WIDTH, WINDOW_HEIGHT, "Grid Demo");
+        window = std::make_unique<Window>(WINDOW_WIDTH, WINDOW_HEIGHT, "Unified Shader Demo");
     }
 
     void InitCallbacks()
@@ -133,103 +226,119 @@ private:
         glfwSetCursorPosCallback(window->getHandle(), CursorPosCallback);
         glfwSetMouseButtonCallback(window->getHandle(), MouseButtonCallback);
         glfwSetFramebufferSizeCallback(window->getHandle(), FramebufferSizeCallback);
-        
-        // Center cursor
         glfwSetCursorPos(window->getHandle(), WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
+    }
+
+    void InitObjects(){
+        std::cout << "loading objects.." << std::endl;
+       GLuint objectShaderProgramID = shader->getProgramID();
+
+        objectLoader = new ObjectLoader(objectShaderProgramID);
+        if (objectLoader) {
+            // Load only mesh 4 (assuming 0-indexed, if it's the 5th mesh, use 4. If it's literally named mesh 4, this is how we did it before)
+            std::vector<unsigned int> meshesToLoad = {4};
+            if (!objectLoader->load("../Objects/cottage_obj.obj", meshesToLoad)) {
+                std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
+            } else {
+                std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
+            }
+        } else {
+            std::cerr << "Failed to create ObjectLoader instance." << std::endl;
+        }
     }
 
     void InitCamera()
     {
-        // Start slightly higher to see the crater mountains
-        vec3 cameraPos = vec3(625.0f, 150.0f, 625.0f); // Increased Y for better view of crater
-        // Point slightly downwards initially
-        vec3 cameraTarget = vec3(0.0f, -0.3f, 1.0f); // Adjusted target for new camera height
+        vec3 cameraPos = vec3(625.0f, 150.0f, 625.0f);
+        vec3 cameraTarget = vec3(0.0f, -0.3f, 1.0f);
         vec3 cameraUp = vec3(0.0f, 1.0f, 0.0f);
-        
         float fov = 45.0f;
         float zNear = 0.1f;
         float zFar = 2000.0f;
-        PersProjInfo persProjInfo = {fov, WINDOW_WIDTH, WINDOW_HEIGHT, zNear, zFar};
+        PersProjInfo persProjInfo = {fov, static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT), zNear, zFar};
 
         camera = std::make_unique<Camera>(persProjInfo, cameraPos, cameraTarget, cameraUp);
+    }
+
+
+    void InitMaterial()
+    {
+        m_terrainMaterial = std::make_unique<Material>(0.15f, 24.0f);
+    }
+
+    void InitLight() // This method now just creates the Light object. Its properties are set by CelestialLightManager.
+    {
+        // Initial values for the Light object. These will be quickly overwritten by CelestialLightManager.
+        GLfloat initialColorRed = 1.0f;
+        GLfloat initialColorGreen = 1.0f;
+        GLfloat initialColorBlue = 1.0f;
+        GLfloat initialAmbientIntensity = 0.2f;
+        GLfloat initialDirectionX = 0.0f;
+        GLfloat initialDirectionY = 1.0f; // Pointing up initially
+        GLfloat initialDirectionZ = 0.0f;
+        GLfloat initialDiffuseIntensity = 0.5f;
+
+        light = std::make_unique<Light>(initialColorRed, initialColorGreen, initialColorBlue, initialAmbientIntensity,
+                                        initialDirectionX, initialDirectionY, initialDirectionZ, initialDiffuseIntensity);
+        std::cout << "Directional Light object created." << std::endl;
     }
 
     void InitShader()
     {
         auto& shaderManager = ShaderManager::getInstance();
-        shader = shaderManager.loadShader("basic", 
-                                         "shaders/vshader.glsl", 
-                                         "shaders/fshader.glsl");
-        
+        shader = shaderManager.loadShader("unifiedShader",
+                                        "shaders/vshader.glsl",
+                                        "shaders/fshader.glsl");
         if (!shader) {
-            std::cerr << "Failed to load shader" << std::endl;
+            std::cerr << "Failed to load unified shader (shaders/vshader.glsl, shaders/fshader.glsl)" << std::endl;
             exit(-1);
         }
+        std::cout << "Unified shader loaded successfully." << std::endl;
     }
 
     void InitGrid()
     {
         float worldScale = 5.0f;
-        float textureScale = 10.0f; 
-        
+        float textureScale = 10.0f;
+
         grid = std::make_unique<TerrainGrid>();
         TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::VOLCANIC_CALDERA;
-        float maxEdgeHeightForGenerator = 120.0f; 
+        float maxEdgeHeightForGenerator = 120.0f;
         float centralFlatRatioForGenerator = 0.25f;
 
-        grid->Init(GRID_SIZE, GRID_SIZE, worldScale, textureScale, 
-                  terrainType, maxEdgeHeightForGenerator, centralFlatRatioForGenerator);
+        grid->Init(GRID_SIZE, GRID_SIZE, worldScale, textureScale,
+                    terrainType, maxEdgeHeightForGenerator, centralFlatRatioForGenerator);
 
-        // Update min/max terrain heights from the grid itself
         m_minTerrainHeight = grid->GetMinHeight();
         m_maxTerrainHeight = grid->GetMaxHeight();
-                  
-        const auto& layerPercentages = grid->GetLayerInfo();
 
-        // Define texture paths - these could be mapped based on terrainType in a more advanced system
+        const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
-            "resources/textures/grass.jpg", // Corresponds to layer defined by layer1_percentage
-            "resources/textures/dirt.jpg",  // Corresponds to layer defined by layer2_percentage
-            "resources/textures/rock.jpg",  // Corresponds to layer defined by layer3_percentage
-            "resources/textures/snow.jpg"   // Corresponds to the final layer up to maxHeight
+            "resources/textures/grass.jpg",
+            "resources/textures/dirt.jpg",
+            "resources/textures/rock.jpg",
+            "resources/textures/snow.jpg"
         };
 
         m_terrainTextures.clear();
         m_terrainTextureTransitionHeights.clear();
 
         float heightRange = m_maxTerrainHeight - m_minTerrainHeight;
-        // Handle flat terrain case where heightRange might be 0
-        if (heightRange <= 1e-5f) { // Use a small epsilon for float comparison
-             // For flat terrain, transitions might not make sense or might be set to 0 or max.
-             // Based on layerPercentages, if they are 0 for flat, all transitions will be m_minTerrainHeight.
-             // If we want distinct layers even on "flat" terrain (e.g. different soil types based on tiny variations not in heightmap)
-             // this logic would need adjustment. For now, proceed with calculation.
-             // If min=max, all transitions will be equal to minHeight (or maxHeight).
-             // Shader should gracefully handle this (e.g. use first texture).
-             if (heightRange == 0.0f) heightRange = 1.0f; // Avoid division by zero if percentages are non-zero
+        if (heightRange <= 1e-5f) {
+            heightRange = 1.0f;
         }
 
-
-        // Calculate absolute transition heights
-        // These are the ENDING heights for each layer/texture
         float transitionHeight1 = m_minTerrainHeight + heightRange * layerPercentages.layer1_percentage;
         float transitionHeight2 = m_minTerrainHeight + heightRange * layerPercentages.layer2_percentage;
         float transitionHeight3 = m_minTerrainHeight + heightRange * layerPercentages.layer3_percentage;
-        float transitionHeight4 = m_maxTerrainHeight; // The last layer's "transition" is the max height
+        float transitionHeight4 = m_maxTerrainHeight;
 
         std::vector<float> calculatedTransitions = {
-            transitionHeight1, 
-            transitionHeight2, 
-            transitionHeight3, 
-            transitionHeight4
+            transitionHeight1, transitionHeight2, transitionHeight3, transitionHeight4
         };
-        
-        // Load textures and store them with their transition heights
+
         for (size_t i = 0; i < texturePaths.size(); ++i) {
-            if (i >= MAX_SHADER_TEXTURE_LAYERS) { // Ensure we don't exceed shader's capacity
-                std::cout << "Warning: Exceeded max shader texture layers. Only loading " << MAX_SHADER_TEXTURE_LAYERS << std::endl;
-                break;
-            }
+            if (i >= MAX_SHADER_TEXTURE_LAYERS) break;
             auto tex = std::make_shared<Texture>(GL_TEXTURE_2D, texturePaths[i]);
             if (tex->Load()) {
                 m_terrainTextures.push_back(tex);
@@ -237,66 +346,53 @@ private:
                 std::cout << "Loaded texture " << texturePaths[i] << " with transition height " << calculatedTransitions[i] << std::endl;
             } else {
                 std::cerr << "Failed to load terrain texture: " << texturePaths[i] << std::endl;
-                // Optionally, push a placeholder or skip to keep vectors aligned if shader expects all slots
             }
         }
 
-        std::cout << "Terrain textures setup for GPU blending. Count: " << m_terrainTextures.size() << std::endl;
         if (m_terrainTextures.empty()) {
-             std::cerr << "CRITICAL: No terrain textures were loaded!" << std::endl;
+            std::cerr << "CRITICAL: No terrain textures were loaded!" << std::endl;
         }
     }
-    
+
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
-    std::shared_ptr<Shader> shader;
     std::unique_ptr<TerrainGrid> grid;
+    std::unique_ptr<Light> light; // The actual light object used by shaders
+    std::unique_ptr<CelestialLightManager> m_celestialLightManager; // <<< ADD LIGHT MANAGER MEMBER
     bool m_isWireframe = false;
     float m_minTerrainHeight = 0.0f;
     float m_maxTerrainHeight = 1.0f;
-    
+
     std::vector<std::shared_ptr<Texture>> m_terrainTextures;
     std::vector<float> m_terrainTextureTransitionHeights;
-    static const int MAX_SHADER_TEXTURE_LAYERS = 4; // Max layers shader supports
+    static const int MAX_SHADER_TEXTURE_LAYERS = 4;
 };
 
-// Global app instance
 GridDemo* g_app = nullptr;
 
-// Callback functions
-static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    g_app->KeyboardCB(key, action);
+static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (g_app) g_app->KeyboardCB(key, action);
 }
-
-static void CursorPosCallback(GLFWwindow* window, double x, double y)
-{
-    g_app->PassiveMouseCB((int)x, (int)y);
+static void CursorPosCallback(GLFWwindow* window, double x, double y) {
+    if (g_app) g_app->PassiveMouseCB(static_cast<int>(x), static_cast<int>(y));
 }
-
-static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode)
-{
+static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode) {
     double x, y;
     glfwGetCursorPos(window, &x, &y);
-    g_app->MouseCB(Button, Action, (int)x, (int)y);
+    if (g_app) g_app->MouseCB(Button, Action, static_cast<int>(x), static_cast<int>(y));
+}
+static void FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
+    if (g_app) g_app->ResizeCB(width, height);
 }
 
-static void FramebufferSizeCallback(GLFWwindow* window, int width, int height)
-{
-    g_app->ResizeCB(width, height);
-}
+
 
 int main(int argc, char** argv)
 {
-    // Seed random number generator
-    srand(time(0)); 
-
     g_app = new GridDemo();
     g_app->Init();
 
-    // Set up OpenGL state
-    glClearColor(0.529f, 0.808f, 0.922f, 1.0f); // Sky blue color
     glFrontFace(GL_CCW);
     glCullFace(GL_BACK);
     glEnable(GL_CULL_FACE);
@@ -305,5 +401,6 @@ int main(int argc, char** argv)
     g_app->Run();
 
     delete g_app;
+    g_app = nullptr;
     return 0;
 }
