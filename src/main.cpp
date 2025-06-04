@@ -151,6 +151,8 @@ public:
         float scale = 100.0f;
         float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
         float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
+        normX = 0.0f;
+        normY = 0.0f;
         normX *= scale;
         normY *= scale;
 
@@ -237,7 +239,7 @@ private:
         if (objectLoader) {
             // Load only mesh 4 (assuming 0-indexed, if it's the 5th mesh, use 4. If it's literally named mesh 4, this is how we did it before)
             std::vector<unsigned int> meshesToLoad = {4};
-            if (!objectLoader->load("../Objects/cottage_obj.obj", meshesToLoad)) {
+            if (!objectLoader->load("Objects/cottage_obj.obj", meshesToLoad)) {
                 std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
             } else {
                 std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
@@ -314,6 +316,7 @@ private:
 
         const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
+            "resources/textures/sand.jpg",
             "resources/textures/grass.jpg",
             "resources/textures/dirt.jpg",
             "resources/textures/rock.jpg",
@@ -328,13 +331,15 @@ private:
             heightRange = 1.0f;
         }
 
-        float transitionHeight1 = m_minTerrainHeight + heightRange * layerPercentages.layer1_percentage;
-        float transitionHeight2 = m_minTerrainHeight + heightRange * layerPercentages.layer2_percentage;
-        float transitionHeight3 = m_minTerrainHeight + heightRange * layerPercentages.layer3_percentage;
-        float transitionHeight4 = m_maxTerrainHeight;
+        // Update transition heights for 5 textures
+        float transitionHeight1 = m_minTerrainHeight + heightRange * 0.20f; // sand -> grass
+        float transitionHeight2 = m_minTerrainHeight + heightRange * 0.40f; // grass -> dirt  
+        float transitionHeight3 = m_minTerrainHeight + heightRange * 0.60f; // dirt -> rock
+        float transitionHeight4 = m_minTerrainHeight + heightRange * 0.80f; // rock -> snow
+        float transitionHeight5 = m_maxTerrainHeight; // final snow
 
         std::vector<float> calculatedTransitions = {
-            transitionHeight1, transitionHeight2, transitionHeight3, transitionHeight4
+            transitionHeight1, transitionHeight2, transitionHeight3, transitionHeight4, transitionHeight5
         };
 
         for (size_t i = 0; i < texturePaths.size(); ++i) {
@@ -366,7 +371,7 @@ private:
 
     std::vector<std::shared_ptr<Texture>> m_terrainTextures;
     std::vector<float> m_terrainTextureTransitionHeights;
-    static const int MAX_SHADER_TEXTURE_LAYERS = 4;
+    static const int MAX_SHADER_TEXTURE_LAYERS = 5;
 };
 
 GridDemo* g_app = nullptr;

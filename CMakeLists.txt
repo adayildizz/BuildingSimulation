@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find required packages
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
+find_package(assimp REQUIRED)
 
 # Add source files
 set(SOURCES
@@ -28,9 +29,6 @@ set(SOURCES
     src/ObjectLoader/ObjectLoader.cpp
 )
 
-set(ASSIMP_SRC_DIR ${CMAKE_SOURCE_DIR}/include/assimp)
-set(ASSIMP_BUILD_DIR ${ASSIMP_SRC_DIR}/build)
-
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
 
@@ -38,8 +36,6 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${OPENGL_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/include
-    ${ASSIMP_SRC_DIR}/include      # Assimp's source include directory
-    ${ASSIMP_BUILD_DIR}/include   # Assimp's build include directory (for generated headers like config.h)
     ${CMAKE_SOURCE_DIR}/src
 )
 
@@ -48,16 +44,11 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     GL_SILENCE_DEPRECATION
 )
 
-target_link_directories(${PROJECT_NAME} PRIVATE
-    ${ASSIMP_BUILD_DIR}/lib         # Assimp built static/shared libs
-)
-
-
 # Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenGL::GL
     glfw
-    ${ASSIMP_BUILD_DIR}/bin/libassimp.dylib
+    assimp::assimp
 )
 
 # Copy shader files to build directory
@@ -81,4 +72,13 @@ add_custom_command(
     ${CMAKE_SOURCE_DIR}/resources
     ${CMAKE_BINARY_DIR}/resources
     COMMENT "Copying resources to build directory"
+)
+
+# Copy Objects directory recursively to build directory
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/Objects
+    ${CMAKE_BINARY_DIR}/Objects
+    COMMENT "Copying Objects to build directory"
 )

@@ -6,21 +6,25 @@ in vec4 baseColor;
 in vec2 outTexCoord;      // Texture coordinates from vertex shader
 in vec3 outWorldPos;      // World position from vertex shader
 in vec3 outNormal_world;  // World-space normal from vertex shader
+in vec4 outSplatWeights1234; // First 4 splat weights from vertex shader
+in float outSplatWeight5;     // Fifth splat weight from vertex shader
 
-// Texture samplers for terrain layers
-uniform sampler2D gTextureHeight0;
-uniform sampler2D gTextureHeight1;
-uniform sampler2D gTextureHeight2;
-uniform sampler2D gTextureHeight3;
+// Texture samplers for terrain layers - now 5 textures
+uniform sampler2D gTextureHeight0; // Sand
+uniform sampler2D gTextureHeight1; // Grass
+uniform sampler2D gTextureHeight2; // Dirt
+uniform sampler2D gTextureHeight3; // Rock
+uniform sampler2D gTextureHeight4; // Snow
 
 // Separate texture sampler for objects
 uniform sampler2D objectTexture;
 
-// Height thresholds for blending textures (for terrain)
+// Height thresholds for blending textures (for terrain) - kept for compatibility but not used with splat weights
 uniform float gHeight0;
 uniform float gHeight1;
 uniform float gHeight2;
 uniform float gHeight3;
+uniform float gHeight4; // New height threshold for snow
 
 // Light Structure
 struct DirectionalLight {
@@ -44,7 +48,27 @@ uniform vec3 gViewPosition_world;
 // NEW: Uniform to differentiate between terrain and object
 uniform bool u_isTerrain;
 
-// Function to calculate blended texture color based on height (for terrain)
+// Function to calculate blended texture color using splat weights for 5 textures
+vec4 CalculateBlendedTextureColorFromWeights()
+{
+    // Sample all terrain textures
+    vec4 tex0 = texture(gTextureHeight0, outTexCoord); // Sand
+    vec4 tex1 = texture(gTextureHeight1, outTexCoord); // Grass
+    vec4 tex2 = texture(gTextureHeight2, outTexCoord); // Dirt
+    vec4 tex3 = texture(gTextureHeight3, outTexCoord); // Rock
+    vec4 tex4 = texture(gTextureHeight4, outTexCoord); // Snow
+    
+    // Blend using splat weights
+    vec4 finalTexColor = tex0 * outSplatWeights1234.x +  // Sand
+                         tex1 * outSplatWeights1234.y +  // Grass
+                         tex2 * outSplatWeights1234.z +  // Dirt
+                         tex3 * outSplatWeights1234.w +  // Rock
+                         tex4 * outSplatWeight5;         // Snow
+                         
+    return finalTexColor;
+}
+
+// Legacy function - kept for reference but not used with splat weights
 vec4 CalculateBlendedTextureColor()
 {
     vec4 finalTexColor;
@@ -83,7 +107,8 @@ void main()
     vec4 albedo;
 
     if (u_isTerrain) {
-        albedo = CalculateBlendedTextureColor();
+        // Use splat weights for terrain blending
+        albedo = CalculateBlendedTextureColorFromWeights();
     } else {
         // Object rendering: Use the dedicated object texture sampler
         albedo = texture(objectTexture, outTexCoord);
