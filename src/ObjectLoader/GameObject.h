@@ -9,19 +9,30 @@ class GameObject{
         ~GameObject();
         void Move(vec4 pos);
         void SetPosition(vec4 pos);
-        void Rotate(float angle);
+        void RotateY(float angle);
+        void RotateX(float angle);
+        void RotateZ(float angle);
+        void Rotate(float angle); // Rotate around Y axis by default
         void Scale(float amount);
         vec4 GetPosition();
         void Render();
+        mat4 objectModelMatrix;
         bool isInPlacement;
+        
+        // Bounding box methods
+        vec3 GetBoundingBoxSize() const;
+        float GetWidth() const;  // X dimension
+        float GetDepth() const;  // Z dimension
+        float GetHeight() const; // Y dimension
+        
     private:
         vec4 position;
-        float angle;
+        float angleY,angleZ,angleX;
         float scale;
         ObjectLoader* objectLoader;
-        mat4 objectModelMatrix;
-        void UpdateModelMatrix();
         
+        void UpdateModelMatrix();
+    
 };
 
 #endif // GAME_OBJECT_H

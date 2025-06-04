@@ -24,6 +24,7 @@
 //global mouse pos
 double mouseX = 0.0f;
 double mouseY = 0.0f;
+vec3 intersectionPoint; // Store the last raycast intersection point
 float objectPosX = 500.0f;
 float ObjectPosY = 10.0f;
 float ObjectPosZ = 600.0f;
@@ -151,21 +152,18 @@ public:
         // --- Render Objects ---
         shader->setUniform("u_isTerrain", false);
         
-        // Calculate the model-view matrix for the game object
-        mat4 viewMatrix = camera->GetViewMatrix();
-        mat4 modelViewMatrix = viewMatrix; // You might want to include projection here too
-        
-        
-        vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ);
-        float scale = 100.0f; // Increased scale to make mouse movement more visible
-        float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
-        float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
-        
-        // Calculate absolute world position based on mouse
-        float worldX = fixedObjectWorldPos.x + (normX * scale);
-        float worldZ = fixedObjectWorldPos.z + (normY * scale);
-        
-        if(gameObject->isInPlacement)gameObject->SetPosition(vec4(worldX, ObjectPosY, worldZ, 1.0f));
+        // Use raycasting to position objects on terrain
+        if (gameObject && gameObject->isInPlacement) {
+            vec3 intersectionPoint;
+            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                // Center the object on the cursor by offsetting by half its width and depth
+                float halfWidth = gameObject->GetWidth() / 2.0f;
+                float halfDepth = gameObject->GetDepth() / 2.0f;
+                gameObject->SetPosition(vec4(intersectionPoint.x - halfDepth, 
+                                           intersectionPoint.y, 
+                                           intersectionPoint.z - halfWidth, 1.0f));
+            }
+        }
         
         objectManager->RenderAll();
     }
@@ -185,16 +183,33 @@ public:
                 case GLFW_KEY_C:
                     camera->Print();
                     break;
-                case GLFW_KEY_N:
+                case GLFW_KEY_N:{
                     //TODO:this should be in a thread or a process !!!!!
-                    
+                    ObjectLoader* obj = new ObjectLoader(*shader);
+                    obj->load("../Objects/Cat/cat.obj", {0});
+                    int index = objectManager->CreateNewObject(*obj);
+                    gameObject = objectManager->GetGameObject(index);
+                    //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
+                    gameObject->Scale(0.7f);
+                    gameObject->RotateX(-90.0f);
+                    gameObject->isInPlacement = true; // Put new object in placement mode
+                    break;
+                };
+                case GLFW_KEY_T:{
+                    //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
                     obj->load("../Objects/Tree/Tree1.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
-                    gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
+                    //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
                     gameObject->Scale(10.0f);
-                    
+
+                    gameObject->isInPlacement = true; // Put new object in placement mode
+                    break;
+                };
+                case GLFW_KEY_R:
+                    gameObject->RotateY(5.0f);
+                    break;
             }
 
             //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
@@ -217,7 +232,10 @@ public:
             if (action == GLFW_PRESS) {
                 camera->UpdateMousePos(x, y);
                 camera->StartRotation();
-                gameObject->isInPlacement = false;
+                // Only finalize object placement if there's an object in placement mode
+                if (gameObject && gameObject->isInPlacement) {
+                    gameObject->isInPlacement = false;
+                }
             } else if (action == GLFW_RELEASE) {
                 camera->StopRotation();
             }
@@ -259,7 +277,8 @@ private:
         int objectIndex = objectManager->CreateNewObject(*objectLoader);
         gameObject = objectManager->GetGameObject(objectIndex);
         //gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
-        gameObject->Scale(10.0f);
+        gameObject->Scale(5.0f);
+        gameObject->isInPlacement = true; // Initially placed
     }
 
     void InitCamera()
@@ -317,7 +336,7 @@ private:
         float textureScale = 10.0f;
 
         grid = std::make_unique<TerrainGrid>();
-        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::VOLCANIC_CALDERA;
+        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::FLAT;
         float maxEdgeHeightForGenerator = 120.0f;
         float centralFlatRatioForGenerator = 0.25f;
 

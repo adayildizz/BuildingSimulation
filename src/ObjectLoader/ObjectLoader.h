@@ -18,10 +18,16 @@ public:
     bool load(const std::string& filename, const std::vector<unsigned int>& meshesToLoadIndices = {});
     void render();
     Shader program;
+    
+    // Bounding box methods
+    vec3 GetBoundingBoxSize() const;
+    vec3 GetBoundingBoxMin() const;
+    vec3 GetBoundingBoxMax() const;
 
 private:
     void createDefaultWhiteTexture();
     void cleanup(); // Helper for destructor and potential re-load
+    void calculateBoundingBox(const aiScene* scene, const std::vector<unsigned int>& meshesToLoadIndices);
 
      // Shader program ID
     std::vector<GLuint> vaos, vbos, ebos;
@@ -34,6 +40,11 @@ private:
     // std::vector<vec4> meshColors; 
     
     GLuint defaultWhiteTextureID;
+    
+    // Bounding box data
+    vec3 boundingBoxMin;
+    vec3 boundingBoxMax;
+    bool boundingBoxCalculated;
 
 };
 
