@@ -282,20 +282,18 @@ public:
                     gameObject->Scale(10.0f);
 
                     gameObject->isInPlacement = true; // Put new object in placement mode
-                    break;
+                    break; 
                 };
                 case GLFW_KEY_R:
                     gameObject->RotateY(5.0f);
                     break;
-            }
+            }   
 
             //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
-        }
+        } 
         camera->OnKeyboard(key);
-    }
-
-
-
+    } 
+ 
     void PassiveMouseCB(int x, int y)
     {
         mouseX = static_cast<double>(x);
