@@ -9,7 +9,7 @@
 #include "ObjectLoader/ObjectLoader.h"
 #include "Angel.h"
 #include "Core/CelestialLightManager.h"
-#include "Water/Water.h"
+#include "Water/WaterManager.h"
 
 
 #include <iostream>
@@ -37,7 +37,6 @@ ObjectLoader* objectLoader;
 // Global Pointers
 std::unique_ptr<Material> m_terrainMaterial;
 std::shared_ptr<Shader> shader;
-std::shared_ptr<Shader> waterProgram; 
 
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -173,147 +172,38 @@ public:
         }
 
         // --- Render Water ---
-        if (water && waterProgram) {
-            // First render the scene to the reflection FBO
-            glBindFramebuffer(GL_FRAMEBUFFER, water->reflectionFBO);
-            glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        if (waterManager) {
+            waterManager->renderAll(viewProjMatrix, camera.get(), shader.get(),
+                [this](vec4 clipPlane) {
+                    shader->setUniform("clipPlane", clipPlane);
+                    
+                    // Render terrain
+                    shader->setUniform("u_isTerrain", true);
+                    shader->setUniform("gModelMatrix", mat4(1.0f));
+                    if (m_terrainMaterial && shader->isValid()) {
+                        GLuint shaderID = shader->getProgramID();
+                        GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
+                        GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
+                        m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
+                    }
+                    shader->setUniform("gMinHeight", m_minTerrainHeight);
+                    shader->setUniform("gMaxHeight", m_maxTerrainHeight);
 
-            // Use the main shader for scene rendering
-            shader->use();
+                    for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
+                        if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
+                            m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
+                            shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
+                            shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
+                        }
+                    }
+                    grid->Render();
 
-            // Set up clip plane for reflection (clip everything below water)
-            vec4 clipPlaneReflection = vec4(0.0f, 1.0f, 0.0f, -100.0f); 
-            shader->setUniform("clipPlane", clipPlaneReflection);
-
-            // Set view-projection matrix
-            shader->setUniform("gVP", viewProjMatrix);
-            shader->setUniform("gViewPosition_world", camera->GetPosition());
-
-            // Render terrain
-            shader->setUniform("u_isTerrain", true);
-            shader->setUniform("gModelMatrix", mat4(1.0f));
-            if (m_terrainMaterial && shader->isValid()) {
-                GLuint shaderID = shader->getProgramID();
-                GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
-                GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
-                m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
-            }
-            shader->setUniform("gMinHeight", m_minTerrainHeight);
-            shader->setUniform("gMaxHeight", m_maxTerrainHeight);
-
-            for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
-                if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
-                    m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
-                    shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
-                    shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
-                }
-            }
-            grid->Render();
-
-            // Render objects
-            shader->setUniform("u_isTerrain", false);
-            if (objectLoader) {
-                objectLoader->render();
-            }
-
-            // Then render the scene to the refraction FBO
-            glBindFramebuffer(GL_FRAMEBUFFER, water->refractionFBO);
-            glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-            // Use the main shader for scene rendering
-            shader->use();
-
-            // Set up clip plane for refraction (clip everything above water)
-            vec4 clipPlaneRefraction = vec4(0.0f, -1.0f, 0.0f, 100.0f); 
-            shader->setUniform("clipPlane", clipPlaneRefraction);
-
-            // Set view-projection matrix
-            shader->setUniform("gVP", viewProjMatrix);
-            shader->setUniform("gViewPosition_world", camera->GetPosition());
-
-            // Render terrain
-            shader->setUniform("u_isTerrain", true);
-            shader->setUniform("gModelMatrix", mat4(1.0f));
-            if (m_terrainMaterial && shader->isValid()) {
-                GLuint shaderID = shader->getProgramID();
-                GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
-                GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
-                m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
-            }
-            shader->setUniform("gMinHeight", m_minTerrainHeight);
-            shader->setUniform("gMaxHeight", m_maxTerrainHeight);
-
-            for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
-                if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
-                    m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
-                    shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
-                    shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
-                }
-            }
-            grid->Render();
-
-            // Render objects
-            shader->setUniform("u_isTerrain", false);
-            if (objectLoader) {
-                objectLoader->render();
-            }
-
-            // Switch back to default framebuffer
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-
-            // Now render the water surface
-            waterProgram->use();
-            
-            // Calculate water position in front of camera
-            vec3 cameraPos = camera->GetPosition();
-            vec3 cameraTarget = camera->GetTarget();
-            vec3 cameraDir = normalize(cameraTarget - cameraPos);
-            
-            // Position water at a fixed position relative to camera
-            vec3 waterPos = vec3(625.0f, 100.0f, 625.0f);  // Fixed position near camera's initial position
-            
-            // Create transformation matrix with larger scale
-            mat4 waterModelMatrix = Translate(waterPos.x, waterPos.y, waterPos.z) * Scale(200.0f, 1.0f, 200.0f);  // Made even larger
-            
-            // Set uniforms
-            waterProgram->setUniform("ModelView", waterModelMatrix);
-            waterProgram->setUniform("Projection", viewProjMatrix);
-            
-            // Set time for wave animation
-            static float time = 0.0f;
-            time += 0.016f; // Assuming 60 FPS
-            waterProgram->setUniform("uTime", time);
-            
-            // Set eye position
-            waterProgram->setUniform("eyePosition", vec4(cameraPos, 1.0f));
-            
-            // Bind textures
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, water->dudvTexture);
-            waterProgram->setUniform("dudvMap", 0);
-
-            glActiveTexture(GL_TEXTURE1);
-            glBindTexture(GL_TEXTURE_2D, water->refractionTexture);
-            waterProgram->setUniform("refractionTexMap", 1);
-
-            glActiveTexture(GL_TEXTURE2);
-            glBindTexture(GL_TEXTURE_2D, water->reflectionTexture);
-            waterProgram->setUniform("reflectionTexMap", 2);
-            
-            // Enable blending for water
-            glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            
-            // Bind water mesh VAO and render
-            glBindVertexArray(water->waterVAO);
-            glDrawElements(GL_TRIANGLES, water->meshIndices.size(), GL_UNSIGNED_INT, 0);
-            glBindVertexArray(0);
-            
-            // Disable blending
-            glDisable(GL_BLEND);
+                    // Render objects
+                    shader->setUniform("u_isTerrain", false);
+                    if (objectLoader) {
+                        objectLoader->render();
+                    }
+                });
         }
     }
 
@@ -513,19 +403,20 @@ private:
             return;
         }
 
-        // Create water instance
-        water = std::make_unique<Water>(waterProgram.get());
-        // Load dudv texture
-        water->dudvTexture = water->loadTexture("resources/textures/dudvMap.jpg");
-        // Generate water mesh
-        water->generateMesh();
-        water->createWaterMeshVAO();
+        // Create water manager
+        waterManager = std::make_unique<WaterManager>(waterProgram, WINDOW_WIDTH, WINDOW_HEIGHT);
         
-        // Create FBOs and textures for water reflections
-        water->reflectionFBO = water->createFBO(water->reflectionTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
-        water->refractionFBO = water->createFBO(water->refractionTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
+        // Add three water instances at different locations
+        // First water - near the center
+        waterManager->addWaterAt(vec3(625.0f, 100.0f, 625.0f), 200.0f);
         
-         glEnable(GL_DEPTH_TEST);
+        // Second water - to the north
+        waterManager->addWaterAt(vec3(400.0f, 80.0f, 800.0f), 150.0f);
+        
+        // Third water - to the south
+        waterManager->addWaterAt(vec3(800.0f, 120.0f, 400.0f), 180.0f);
+        
+        glEnable(GL_DEPTH_TEST);
     }
 
  
@@ -543,8 +434,8 @@ private:
     std::vector<float> m_terrainTextureTransitionHeights;
     static const int MAX_SHADER_TEXTURE_LAYERS = 4;
 
-   
-    std::unique_ptr<Water> water;
+    std::shared_ptr<Shader> waterProgram;
+    std::unique_ptr<WaterManager> waterManager;
 };
 
 

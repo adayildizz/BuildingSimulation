@@ -30,6 +30,7 @@ set(SOURCES
     src/ObjectLoader/ObjectLoader.cpp
     src/Water/Water.cpp
     src/Water/WaterRenderer.cpp
+    src/Water/WaterManager.cpp
 )
 
 # Create executable
