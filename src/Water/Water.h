@@ -17,8 +17,7 @@ public:
     GLuint createFBO(GLuint& texture, int width, int height);   
     GLuint loadTexture(const std::string& texturePath);
     void renderToFBO(GLuint fbo, int width, int height, GLuint shaderProgram, GLuint vao, int vertexCount); 
-    void createRefraction(Camera* camera, Shader* mainShader, float waterHeight);
-
+    
     Shader* waterProgram;
     
     // OpenGL buffers

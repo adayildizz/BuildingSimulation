@@ -174,7 +174,50 @@ public:
 
         // --- Render Water ---
         if (water && waterProgram) {
-            // First render the scene to the refraction FBO
+            // First render the scene to the reflection FBO
+            glBindFramebuffer(GL_FRAMEBUFFER, water->reflectionFBO);
+            glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            // Use the main shader for scene rendering
+            shader->use();
+
+            // Set up clip plane for reflection (clip everything below water)
+            vec4 clipPlaneReflection = vec4(0.0f, 1.0f, 0.0f, -100.0f); 
+            shader->setUniform("clipPlane", clipPlaneReflection);
+
+            // Set view-projection matrix
+            shader->setUniform("gVP", viewProjMatrix);
+            shader->setUniform("gViewPosition_world", camera->GetPosition());
+
+            // Render terrain
+            shader->setUniform("u_isTerrain", true);
+            shader->setUniform("gModelMatrix", mat4(1.0f));
+            if (m_terrainMaterial && shader->isValid()) {
+                GLuint shaderID = shader->getProgramID();
+                GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
+                GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
+                m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
+            }
+            shader->setUniform("gMinHeight", m_minTerrainHeight);
+            shader->setUniform("gMaxHeight", m_maxTerrainHeight);
+
+            for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
+                if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
+                    m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
+                    shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
+                    shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
+                }
+            }
+            grid->Render();
+
+            // Render objects
+            shader->setUniform("u_isTerrain", false);
+            if (objectLoader) {
+                objectLoader->render();
+            }
+
+            // Then render the scene to the refraction FBO
             glBindFramebuffer(GL_FRAMEBUFFER, water->refractionFBO);
             glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -213,19 +256,6 @@ public:
 
             // Render objects
             shader->setUniform("u_isTerrain", false);
-            vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ);
-            float scale = 100.0f;
-            float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
-            float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
-            normX *= scale;
-            normY *= scale;
-
-            mat4 translation_from_cursor = Translate(fixedObjectWorldPos.x + normX, fixedObjectWorldPos.y, fixedObjectWorldPos.z + normY);
-            mat4 objectScaleMatrix = Scale(5.0f, 5.0f, 5.0f);
-            mat4 objectModelMatrix = translation_from_cursor * objectScaleMatrix;
-
-            shader->setUniform("gModelMatrix", objectModelMatrix);
-
             if (objectLoader) {
                 objectLoader->render();
             }
@@ -268,6 +298,10 @@ public:
             glActiveTexture(GL_TEXTURE1);
             glBindTexture(GL_TEXTURE_2D, water->refractionTexture);
             waterProgram->setUniform("refractionTexMap", 1);
+
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, water->reflectionTexture);
+            waterProgram->setUniform("reflectionTexMap", 2);
             
             // Enable blending for water
             glEnable(GL_BLEND);
