@@ -1,4 +1,3 @@
-
 #ifndef GAME_OBJECT_MANAGER_H
 #define GAME_OBJECT_MANAGER_H
 #include "GameObject.h"
@@ -16,4 +15,4 @@ class GameObjectManager{
 };
 
 
-#endif GAME_OBJECT_MANAGER_H
+#endif // GAME_OBJECT_MANAGER_H

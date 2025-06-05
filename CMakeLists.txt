@@ -86,3 +86,12 @@ add_custom_command(
     ${CMAKE_BINARY_DIR}/resources
     COMMENT "Copying resources to build directory"
 )
+
+# Copy Objects directory recursively to build directory
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/Objects
+    ${CMAKE_BINARY_DIR}/Objects
+    COMMENT "Copying Objects to build directory"
+)

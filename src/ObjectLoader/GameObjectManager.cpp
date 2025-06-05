@@ -1,4 +1,3 @@
-
 #include "GameObjectManager.h"
 #include "GameObject.h"
 #include "ObjectLoader.h"
@@ -19,6 +18,7 @@ GameObject* GameObjectManager::GetGameObject(int index){
         return gameObjects[index];
     }catch(std::exception& ex){
         std::cout << "Index Out of Bounds for index " << index << std::endl;
+        return nullptr;
     }
 }
 

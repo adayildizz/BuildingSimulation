@@ -35,6 +35,10 @@ public:
     float GetMinHeight() const; // Will need to calculate this
     float GetMaxHeight() const; // Will need to calculate this
     
+    // Texture painting methods
+    void PaintTexture(float worldX, float worldZ, int textureLayer, float brushRadius, float brushStrength);
+    void UpdateMesh(); // Force mesh update after painting
+    
 private:
     // Heightmap data
     std::vector<float> m_heightMap;
@@ -44,4 +48,5 @@ private:
     float m_maxHeight;
 
     void CalculateMinMaxHeights(); // Helper to calculate and store min/max
+    void NormalizeSplatWeights(int x, int z); // Helper to normalize weights after painting
 };

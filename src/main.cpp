@@ -31,6 +31,12 @@ float objectPosX = 500.0f;
 float ObjectPosY = 10.0f;
 float ObjectPosZ = 600.0f;
 
+// Texture painting state
+bool isTexturePainting = false;
+int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
+float brushRadius = 15.0f;
+float brushStrength = 2.5f;
+
 // Constants
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
@@ -244,10 +250,30 @@ public:
                 case GLFW_KEY_C:
                     camera->Print();
                     break;
+                case GLFW_KEY_P:
+                    isTexturePainting = !isTexturePainting;
+                    std::cout << "Texture painting mode: " << (isTexturePainting ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_1:
+                case GLFW_KEY_2:
+                case GLFW_KEY_3:
+                case GLFW_KEY_4:
+                case GLFW_KEY_5:
+                    currentTextureLayer = key - GLFW_KEY_1;
+                    std::cout << "Selected texture layer: " << currentTextureLayer << std::endl;
+                    break;
+                case GLFW_KEY_EQUAL: // Increase brush size
+                    brushRadius = std::min(brushRadius * 1.2f, 50.0f);
+                    std::cout << "Brush radius: " << brushRadius << std::endl;
+                    break;
+                case GLFW_KEY_MINUS: // Decrease brush size
+                    brushRadius = std::max(brushRadius / 1.2f, 1.0f);
+                    std::cout << "Brush radius: " << brushRadius << std::endl;
+                    break;
                 case GLFW_KEY_N:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("../Objects/Cat/cat.obj", {0});
+                    obj->load("Objects/Cat/cat.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
                     //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
@@ -259,7 +285,7 @@ public:
                 case GLFW_KEY_T:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("../Objects/Tree/Tree1.obj", {0});
+                    obj->load("Objects/Tree/Tree1.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
                     //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
@@ -271,6 +297,7 @@ public:
                 case GLFW_KEY_R:
                     gameObject->RotateY(5.0f);
                     break;
+                    
             }
 
             //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
@@ -282,17 +309,50 @@ public:
 
     void PassiveMouseCB(int x, int y)
     {
-        mouseX = static_cast<double>(x);
-        mouseY = static_cast<double>(y);
-        camera->OnMouse(x, y);
+        // Get current window size
+        int currentWidth, currentHeight;
+        glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
+        
+        // Store raw coordinates but scale them to match camera's expected dimensions
+        mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
+        mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
+        
+        // Update texture painting while dragging
+        if (isTexturePainting && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+            vec3 intersectionPoint;
+            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                currentTextureLayer, brushRadius, brushStrength);
+            }
+        } else {
+            camera->OnMouse(x, y);
+        }
     }
 
     void MouseCB(int button, int action, int x, int y)
     {
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
+                // Get current window size and scale coordinates
+                int currentWidth, currentHeight;
+                glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
+                
+                // Scale coordinates to match camera's expected dimensions
+                mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
+                mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
+                
                 camera->UpdateMousePos(x, y);
                 camera->StartRotation();
+                
+                // Handle texture painting
+                if (isTexturePainting) {
+                    vec3 intersectionPoint;
+                    if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                        grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                        currentTextureLayer, brushRadius, brushStrength);
+                    }
+                }
+                
                 // Only finalize object placement if there's an object in placement mode
                 if (gameObject && gameObject->isInPlacement) {
                     gameObject->isInPlacement = false;
@@ -335,7 +395,7 @@ private:
         std::cout << "loading objects.." << std::endl;
         objectManager = new GameObjectManager();
         objectLoader = new ObjectLoader(*shader);
-        objectLoader->load("../Objects/Cottage/cottage_obj.obj", {4});
+        objectLoader->load("Objects/Cottage/cottage_obj.obj", {4});
         int objectIndex = objectManager->CreateNewObject(*objectLoader);
         gameObject = objectManager->GetGameObject(objectIndex);
         //gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
@@ -398,7 +458,7 @@ private:
         float textureScale = 10.0f;
 
         grid = std::make_unique<TerrainGrid>();
-        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::FLAT;
+        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::VOLCANIC_CALDERA;
         float maxEdgeHeightForGenerator = 120.0f;
         float centralFlatRatioForGenerator = 0.25f;
 
@@ -410,6 +470,7 @@ private:
 
         const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
+            "resources/textures/sand.jpg",
             "resources/textures/grass.jpg",
             "resources/textures/dirt.jpg",
             "resources/textures/rock.jpg",
@@ -424,13 +485,15 @@ private:
             heightRange = 1.0f;
         }
 
-        float transitionHeight1 = m_minTerrainHeight + heightRange * layerPercentages.layer1_percentage;
-        float transitionHeight2 = m_minTerrainHeight + heightRange * layerPercentages.layer2_percentage;
-        float transitionHeight3 = m_minTerrainHeight + heightRange * layerPercentages.layer3_percentage;
-        float transitionHeight4 = m_maxTerrainHeight;
+        // Update transition heights for 5 textures
+        float transitionHeight1 = m_minTerrainHeight + heightRange * 0.20f; // sand -> grass
+        float transitionHeight2 = m_minTerrainHeight + heightRange * 0.40f; // grass -> dirt  
+        float transitionHeight3 = m_minTerrainHeight + heightRange * 0.60f; // dirt -> rock
+        float transitionHeight4 = m_minTerrainHeight + heightRange * 0.80f; // rock -> snow
+        float transitionHeight5 = m_maxTerrainHeight; // final snow
 
         std::vector<float> calculatedTransitions = {
-            transitionHeight1, transitionHeight2, transitionHeight3, transitionHeight4
+            transitionHeight1, transitionHeight2, transitionHeight3, transitionHeight4, transitionHeight5
         };
 
         for (size_t i = 0; i < texturePaths.size(); ++i) {
@@ -487,7 +550,7 @@ private:
 
     std::vector<std::shared_ptr<Texture>> m_terrainTextures;
     std::vector<float> m_terrainTextureTransitionHeights;
-    static const int MAX_SHADER_TEXTURE_LAYERS = 4;
+    static const int MAX_SHADER_TEXTURE_LAYERS = 5;
 
     std::shared_ptr<Shader> waterProgram;
     std::unique_ptr<WaterManager> waterManager;
