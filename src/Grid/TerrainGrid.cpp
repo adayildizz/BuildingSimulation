@@ -208,7 +208,7 @@ void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float b
             float currentHeight = GetHeight(x, z);
             
             // Calculate new height - only use falloff for blending, not for strength
-            float newHeight = currentHeight + (targetHeight - currentHeight) * falloff;
+            float newHeight = std::max(0.0f, currentHeight + (targetHeight - currentHeight) * falloff);
             
             // Update height in heightmap
             m_heightMap[z * m_width + x] = newHeight;
