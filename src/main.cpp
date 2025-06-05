@@ -169,6 +169,7 @@ public:
 
         // --- Render Water ---
         if (water && waterRenderer) {
+            
             // First do reflection pass
             waterRenderer->ReflectionPass(*camera, *shader, [this]() {
                 // Render scene from reflected camera
@@ -388,8 +389,8 @@ private:
             return;
         }
 
-        // Create water mesh data with size 100
-        const int size = 100;
+        // Create water mesh data with size 200 (increased from 100)
+        const int size = 200;
         const float halfSize = size / 2.0f;
         
         // Generate vertices
@@ -397,9 +398,10 @@ private:
         std::vector<vec2> texCoords;
         for (int z = 0; z <= size; z++) {
             for (int x = 0; x <= size; x++) {
-                float xPos = (x - halfSize);
-                float zPos = (z - halfSize);
-                positions.push_back(vec4(xPos, 0.0f, zPos, 1.0f));
+                // Position the water at y=100 and center it in the scene
+                float xPos = (x - halfSize) + 500.0f;  // Center at x=500
+                float zPos = (z - halfSize) + 500.0f;  // Center at z=500
+                positions.push_back(vec4(xPos, 100.0f, zPos, 1.0f));  // Raise water to y=100
                 
                 // Texture coordinates
                 float u = static_cast<float>(x) / size;

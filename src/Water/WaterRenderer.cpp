@@ -83,8 +83,8 @@ void WaterRenderer::ReflectionPass(Camera& camera, Shader& sceneShader, std::fun
     vec3 reflectedTarget = vec3(originalTarget.x, -originalTarget.y, originalTarget.z);
 
     // Update camera for reflection
-    camera.SetPosition(reflectedPos);
-    camera.SetTarget(reflectedTarget);  // This will call InitInternal() internally
+    //camera.SetPosition(reflectedPos);
+    //camera.SetTarget(reflectedTarget);  // This will call InitInternal() internally
 
     // Set camera matrices as uniforms
     sceneShader.use();
@@ -95,8 +95,8 @@ void WaterRenderer::ReflectionPass(Camera& camera, Shader& sceneShader, std::fun
     renderScene();
 
     // Restore original camera values
-    camera.SetPosition(originalPos);
-    camera.SetTarget(originalTarget);  // This will call InitInternal() internally
+    //camera.SetPosition(originalPos);
+    //camera.SetTarget(originalTarget);  // This will call InitInternal() internally
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
@@ -129,9 +129,10 @@ void WaterRenderer::Draw(const Water& water, const Camera& camera) {
     std::cout << "WaterRenderer::Draw - Shader bound successfully" << std::endl;
 
     // Set uniforms
-    m_shader->setUniform("u_ViewProj", camera.GetViewProjMatrix());
-    m_shader->setUniform("u_CameraPos", camera.GetPosition());
-    m_shader->setUniform("u_Time", (float)glfwGetTime());
+    m_shader->setUniform("ModelView", camera.GetViewMatrix());
+    m_shader->setUniform("Projection", camera.GetProjMatrix());
+    m_shader->setUniform("eyePosition", vec4(camera.GetPosition(), 1.0f));
+    m_shader->setUniform("uTime", (float)glfwGetTime());
     
     std::cout << "WaterRenderer::Draw - Uniforms set:" << std::endl;
     std::cout << "  Camera Position: " << camera.GetPosition() << std::endl;

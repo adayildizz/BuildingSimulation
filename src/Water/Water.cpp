@@ -51,21 +51,16 @@ void Water::draw(Texture& reflectionTexture, Texture& refractionTexture) const {
     reflectionTexture.Bind(GL_TEXTURE0);
     refractionTexture.Bind(GL_TEXTURE1);
     m_dudvMap->Bind(GL_TEXTURE2);
-    m_normalMap->Bind(GL_TEXTURE3);
 
     // Set texture uniforms
-    waterProgram->setUniform("reflectionTexture", 0);
-    waterProgram->setUniform("refractionTexture", 1);
+    waterProgram->setUniform("reflectionTexMap", 0);
+    waterProgram->setUniform("refractionTexMap", 1);
     waterProgram->setUniform("dudvMap", 2);
-    waterProgram->setUniform("normalMap", 3);
 
     // Set time uniform for water animation
     static float time = 0.0f;
     time += 0.016f;  // Assuming 60 FPS
-    waterProgram->setUniform("u_Time", time);
-
-    // Set light color
-    waterProgram->setUniform("u_LightColor", vec3(1.0f, 1.0f, 1.0f));
+    waterProgram->setUniform("uTime", time);
 
     // Draw water mesh
     glBindVertexArray(VAO);

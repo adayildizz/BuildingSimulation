@@ -49,13 +49,8 @@ bool Texture::Load()
 }
 
 bool Texture::LoadRawData(int width, int height, int bpp, unsigned char* data) {
-    if (!data) {
-        std::cerr << "Error in LoadRawData: data pointer is null for texture '" << m_fileName << "'" << std::endl;
-        return false;
-    }
-
     glGenTextures(1, &m_textureObj);
-    if (m_textureObj == 0) { // Check if glGenTextures failed
+    if (m_textureObj == 0) {
         std::cerr << "Error generating texture object for '" << m_fileName << "'" << std::endl;
         return false;
     }
@@ -63,36 +58,38 @@ bool Texture::LoadRawData(int width, int height, int bpp, unsigned char* data) {
 
     GLenum internalFormat = GL_RGB;
     GLenum format = GL_RGB;
-    // Add more cases if you support other BPP values (e.g., 4 for RGBA)
+
     if (bpp == 4) {
         internalFormat = GL_RGBA;
         format = GL_RGBA;
     } else if (bpp != 3) {
         std::cerr << "Unsupported BPP in LoadRawData: " << bpp << " for texture '" << m_fileName << "'. Defaulting to RGB." << std::endl;
-        // Keep RGB as default but log error
     }
 
     if (m_textureTarget == GL_TEXTURE_2D) {
+        // Allow nullptr here — it's valid for framebuffer targets
         glTexImage2D(m_textureTarget, 0, internalFormat, width, height, 0, format, GL_UNSIGNED_BYTE, data);
     } else {
         std::cerr << "Unsupported texture target in LoadRawData for '" << m_fileName << "'" << std::endl;
-        glBindTexture(m_textureTarget, 0); // Unbind before returning false
-        glDeleteTextures(1, &m_textureObj); // Clean up generated texture object
+        glBindTexture(m_textureTarget, 0);
+        glDeleteTextures(1, &m_textureObj);
         m_textureObj = 0;
         return false;
     }
 
-    // Set default texture parameters - can be customized further
-    glTexParameterf(m_textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    // Texture parameters — mipmaps only if data was provided
+    glTexParameterf(m_textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameterf(m_textureTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameterf(m_textureTarget, GL_TEXTURE_WRAP_S, GL_REPEAT); // REPEAT is often better for terrain
-    glTexParameterf(m_textureTarget, GL_TEXTURE_WRAP_T, GL_REPEAT); // REPEAT is often better for terrain
-    
-    glGenerateMipmap(m_textureTarget); // Generate mipmaps for better quality at distance
+    glTexParameterf(m_textureTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameterf(m_textureTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glBindTexture(m_textureTarget, 0); // Unbind texture
+    if (data) {
+        glGenerateMipmap(m_textureTarget); // Only generate mipmaps if actual image data
+    }
 
-    std::cout << "Successfully loaded raw data into texture '" << m_fileName << "' (" << width << "x" << height << ", " << bpp << "bpp)" << std::endl;
+    glBindTexture(m_textureTarget, 0);
+
+    std::cout << "Successfully created raw texture '" << m_fileName << "' (" << width << "x" << height << ", " << bpp << "bpp)" << std::endl;
     return true;
 }
 
