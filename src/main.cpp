@@ -37,7 +37,7 @@ ObjectLoader* objectLoader;
 // Global Pointers
 std::unique_ptr<Material> m_terrainMaterial;
 std::shared_ptr<Shader> shader;
-std::shared_ptr<Shader> dummyProgram; // Water Program
+std::shared_ptr<Shader> waterProgram; 
 
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -173,8 +173,69 @@ public:
         }
 
         // --- Render Water ---
-        if (water && dummyProgram) {
-            dummyProgram->use();
+        if (water && waterProgram) {
+            // First render the scene to the refraction FBO
+            glBindFramebuffer(GL_FRAMEBUFFER, water->refractionFBO);
+            glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            // Use the main shader for scene rendering
+            shader->use();
+
+            // Set up clip plane for refraction (clip everything above water)
+            vec4 clipPlaneRefraction = vec4(0.0f, -1.0f, 0.0f, 100.0f); 
+            shader->setUniform("clipPlane", clipPlaneRefraction);
+
+            // Set view-projection matrix
+            shader->setUniform("gVP", viewProjMatrix);
+            shader->setUniform("gViewPosition_world", camera->GetPosition());
+
+            // Render terrain
+            shader->setUniform("u_isTerrain", true);
+            shader->setUniform("gModelMatrix", mat4(1.0f));
+            if (m_terrainMaterial && shader->isValid()) {
+                GLuint shaderID = shader->getProgramID();
+                GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
+                GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
+                m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
+            }
+            shader->setUniform("gMinHeight", m_minTerrainHeight);
+            shader->setUniform("gMaxHeight", m_maxTerrainHeight);
+
+            for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
+                if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
+                    m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
+                    shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
+                    shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
+                }
+            }
+            grid->Render();
+
+            // Render objects
+            shader->setUniform("u_isTerrain", false);
+            vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ);
+            float scale = 100.0f;
+            float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
+            float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
+            normX *= scale;
+            normY *= scale;
+
+            mat4 translation_from_cursor = Translate(fixedObjectWorldPos.x + normX, fixedObjectWorldPos.y, fixedObjectWorldPos.z + normY);
+            mat4 objectScaleMatrix = Scale(5.0f, 5.0f, 5.0f);
+            mat4 objectModelMatrix = translation_from_cursor * objectScaleMatrix;
+
+            shader->setUniform("gModelMatrix", objectModelMatrix);
+
+            if (objectLoader) {
+                objectLoader->render();
+            }
+
+            // Switch back to default framebuffer
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+            // Now render the water surface
+            waterProgram->use();
             
             // Calculate water position in front of camera
             vec3 cameraPos = camera->GetPosition();
@@ -188,13 +249,25 @@ public:
             mat4 waterModelMatrix = Translate(waterPos.x, waterPos.y, waterPos.z) * Scale(200.0f, 1.0f, 200.0f);  // Made even larger
             
             // Set uniforms
-            dummyProgram->setUniform("gModelMatrix", waterModelMatrix);
-            dummyProgram->setUniform("gVP", viewProjMatrix);
+            waterProgram->setUniform("ModelView", waterModelMatrix);
+            waterProgram->setUniform("Projection", viewProjMatrix);
             
-            // Bind the dummy texture
+            // Set time for wave animation
+            static float time = 0.0f;
+            time += 0.016f; // Assuming 60 FPS
+            waterProgram->setUniform("uTime", time);
+            
+            // Set eye position
+            waterProgram->setUniform("eyePosition", vec4(cameraPos, 1.0f));
+            
+            // Bind textures
             glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, water->dummyTexture);
-            dummyProgram->setUniform("dummyTexture", 0);  // Set texture unit
+            glBindTexture(GL_TEXTURE_2D, water->dudvTexture);
+            waterProgram->setUniform("dudvMap", 0);
+
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, water->refractionTexture);
+            waterProgram->setUniform("refractionTexMap", 1);
             
             // Enable blending for water
             glEnable(GL_BLEND);
@@ -400,24 +473,25 @@ private:
 
     void InitWater() {
         // Initialize water program
-        dummyProgram = std::make_shared<Shader>();
-        if (!dummyProgram->loadFromFiles("shaders/dummy_vert.glsl", "shaders/dummy_frag.glsl")) {
+        waterProgram = std::make_shared<Shader>();
+        if (!waterProgram->loadFromFiles("shaders/water_vert.glsl", "shaders/water_frag.glsl")) {
             std::cerr << "Failed to load water shaders" << std::endl;
             return;
         }
 
         // Create water instance
-        water = std::make_unique<Water>(dummyProgram.get());
-        
+        water = std::make_unique<Water>(waterProgram.get());
+        // Load dudv texture
+        water->dudvTexture = water->loadTexture("resources/textures/dudvMap.jpg");
         // Generate water mesh
         water->generateMesh();
         water->createWaterMeshVAO();
         
-        // Create dummy FBO and texture for water reflections
-        water->createDummy();
-        water->dummyFBO = water->createFBO(water->dummyTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
-        water->renderToFBO(water->dummyFBO, WINDOW_WIDTH, WINDOW_HEIGHT, dummyProgram->getProgramID(), water->dummyVAO, 3);
+        // Create FBOs and textures for water reflections
+        water->reflectionFBO = water->createFBO(water->reflectionTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
+        water->refractionFBO = water->createFBO(water->refractionTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
         
+         glEnable(GL_DEPTH_TEST);
     }
 
  

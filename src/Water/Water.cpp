@@ -73,25 +73,6 @@ void Water::createWaterMeshVAO() {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, meshIndices.size() * sizeof(GLuint), meshIndices.data(), GL_STATIC_DRAW);
 }
 
-void Water::createDummy() {
-
-    glGenVertexArrays(1, &dummyVAO);
-    glGenBuffers(1, &dummyVBO);
-
-    glBindVertexArray(dummyVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, dummyVBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(dummyVertices), dummyVertices, GL_STATIC_DRAW);
-
-    // Position (location = 0)
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
-
-    // TexCoord (location = 1)
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-
-}
-
 GLuint Water::loadTexture(const std::string& texturePath) {
     GLuint texture;
     int width, height, channels;
@@ -176,4 +157,37 @@ void Water::renderToFBO(GLuint fbo, int width, int height, GLuint shaderProgram,
     glDrawArrays(GL_TRIANGLES, 0, vertexCount); // or however many vertices
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+
+void Water::createRefraction(Camera* camera, Shader* mainShader, float waterHeight)
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, refractionFBO);
+    glViewport(0, 0, 512, 512); // hardcoded
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Get view and projection matrices from camera
+    mat4 view = camera->GetViewMatrix();
+    mat4 projection = camera->GetProjMatrix();
+    mat4 viewProjMatrix = view * projection;
+
+    mainShader->use();
+
+    // setup for clipPlane - this will clip everything above water
+    vec4 clipPlaneRefraction = vec4(0.0f, -1.0f, 0.0f, waterHeight); 
+    mainShader->setUniform("clipPlane", clipPlaneRefraction);
+
+    // Set view-projection matrix for the scene
+    mainShader->setUniform("gVP", viewProjMatrix);
+
+    // Render terrain
+    mainShader->setUniform("gModelMatrix", mat4(1.0f));  // Identity matrix for terrain
+    mainShader->setUniform("u_isTerrain", true);
+    // Note: The terrain rendering will be handled by the caller
+
+    // Render objects
+    mainShader->setUniform("u_isTerrain", false);
+    // Note: The object rendering will be handled by the caller
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to screen
 }
