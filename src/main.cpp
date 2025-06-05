@@ -255,8 +255,12 @@ public:
                     std::cout << "Texture painting mode: " << (isTexturePainting ? "ON" : "OFF") << std::endl;
                     break;
                 case GLFW_KEY_F:  // New key for flattening mode
+                    
                     isFlattening = !isFlattening;
-                    isTexturePainting = false;  // Disable texture painting when flattening is enabled
+                    if(!isFlattening){
+                        // add water instance here 
+                    }
+                    isTexturePainting = false;  
                     std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
                     break;
                 case GLFW_KEY_1:
