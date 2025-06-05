@@ -48,11 +48,56 @@ public:
     mat4 GetViewPortMatrix() const;
     vec3 GetPosition() const;
 
+    // Raycasting methods
+    vec3 ScreenToWorldRay(float screenX, float screenY) const;
+    bool RayTerrainIntersection(const vec3& rayOrigin, const vec3& rayDirection, 
+                               float minY, float maxY, vec3& intersectionPoint) const;
+    
+    // Enhanced terrain intersection with grid sampling
+    template<typename TerrainGrid>
+    bool GetTerrainIntersection(float mouseX, float mouseY, TerrainGrid* grid, vec3& intersectionPoint) const {
+        if (!grid) return false;
+        
+        // Get ray direction from camera through mouse cursor
+        vec3 rayDirection = ScreenToWorldRay(mouseX, mouseY);
+        vec3 rayOrigin = GetPosition();
+        
+        // Use smaller step size for more precision
+        float stepSize = 0.5f;
+        float maxDistance = 2000.0f; // Maximum raycast distance
+        
+        for (float distance = 0; distance < maxDistance; distance += stepSize) {
+            vec3 currentPoint = rayOrigin + rayDirection * distance;
+            
+            // Get terrain height at this point
+            float terrainHeight = grid->GetHeightAtWorldPos(currentPoint.x, currentPoint.z);
+            
+            // Check if we've hit the terrain (ray point is below terrain)
+            if (currentPoint.y <= terrainHeight) {
+                // Backtrack for more precision
+                vec3 prevPoint = rayOrigin + rayDirection * (distance - stepSize);
+                
+                // Linear interpolation between the two points for better accuracy
+                float ratio = (terrainHeight - prevPoint.y) / (currentPoint.y - prevPoint.y);
+                if (ratio >= 0.0f && ratio <= 1.0f) {
+                    vec3 precisePoint = prevPoint + ratio * (currentPoint - prevPoint);
+                    intersectionPoint = vec3(precisePoint.x, terrainHeight, precisePoint.z);
+                } else {
+                    intersectionPoint = vec3(currentPoint.x, terrainHeight, currentPoint.z);
+                }
+                return true;
+            }
+        }
+        
+        return false; // No intersection found
+    }
+
     void Print() const { std::cout << "Camera[pos = " << m_pos << ", target = " << m_target << ", up = " << m_up << "]" << std::endl; }
 
 private:
     void InitInternal();
     void Update();
+    mat4 InvertMatrix(const mat4& m) const;  // Helper function for matrix inversion
 
     // Camera parameters
     PersProjInfo m_persProjInfo;

@@ -6,11 +6,13 @@
 #include "Core/Texture.h"
 #include "Core/light.h"
 #include "Core/Material.h"
+#include "ObjectLoader/GameObject.h"
 #include "ObjectLoader/ObjectLoader.h"
 #include "Angel.h"
 #include "Core/CelestialLightManager.h"
 #include "Water/WaterManager.h"
 
+#include "ObjectLoader/GameObjectManager.h"
 
 #include <iostream>
 #include <memory>
@@ -24,6 +26,7 @@
 //global mouse pos
 double mouseX = 0.0f;
 double mouseY = 0.0f;
+vec3 intersectionPoint; // Store the last raycast intersection point
 float objectPosX = 500.0f;
 float ObjectPosY = 10.0f;
 float ObjectPosZ = 600.0f;
@@ -33,6 +36,7 @@ const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
 const int GRID_SIZE = 250; // Size of the grid
 ObjectLoader* objectLoader;
+GameObject* gameObject; //SelectedGameObject
 
 // Global Pointers
 std::unique_ptr<Material> m_terrainMaterial;
@@ -46,6 +50,10 @@ static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
 
 
+// Global Pointers
+std::unique_ptr<Material> m_terrainMaterial;
+std::shared_ptr<Shader> shader;
+GameObjectManager* objectManager;
 
 // Grid demo application
 class GridDemo
@@ -204,7 +212,21 @@ public:
                         objectLoader->render();
                     }
                 });
+        
+        // Use raycasting to position objects on terrain
+        if (gameObject && gameObject->isInPlacement) {
+            vec3 intersectionPoint;
+            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                // Center the object on the cursor by offsetting by half its width and depth
+                float halfWidth = gameObject->GetWidth() / 2.0f;
+                float halfDepth = gameObject->GetDepth() / 2.0f;
+                gameObject->SetPosition(vec4(intersectionPoint.x - halfDepth, 
+                                           intersectionPoint.y, 
+                                           intersectionPoint.z - halfWidth, 1.0f));
+            }
         }
+        
+        objectManager->RenderAll();
     }
 
     void KeyboardCB(int key, int action)
@@ -222,13 +244,41 @@ public:
                 case GLFW_KEY_C:
                     camera->Print();
                     break;
-                    
+                case GLFW_KEY_N:{
+                    //TODO:this should be in a thread or a process !!!!!
+                    ObjectLoader* obj = new ObjectLoader(*shader);
+                    obj->load("../Objects/Cat/cat.obj", {0});
+                    int index = objectManager->CreateNewObject(*obj);
+                    gameObject = objectManager->GetGameObject(index);
+                    //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
+                    gameObject->Scale(0.7f);
+                    gameObject->RotateX(-90.0f);
+                    gameObject->isInPlacement = true; // Put new object in placement mode
+                    break;
+                };
+                case GLFW_KEY_T:{
+                    //TODO:this should be in a thread or a process !!!!!
+                    ObjectLoader* obj = new ObjectLoader(*shader);
+                    obj->load("../Objects/Tree/Tree1.obj", {0});
+                    int index = objectManager->CreateNewObject(*obj);
+                    gameObject = objectManager->GetGameObject(index);
+                    //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
+                    gameObject->Scale(10.0f);
+
+                    gameObject->isInPlacement = true; // Put new object in placement mode
+                    break;
+                };
+                case GLFW_KEY_R:
+                    gameObject->RotateY(5.0f);
+                    break;
             }
 
             //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
         }
         camera->OnKeyboard(key);
     }
+
+
 
     void PassiveMouseCB(int x, int y)
     {
@@ -243,6 +293,10 @@ public:
             if (action == GLFW_PRESS) {
                 camera->UpdateMousePos(x, y);
                 camera->StartRotation();
+                // Only finalize object placement if there's an object in placement mode
+                if (gameObject && gameObject->isInPlacement) {
+                    gameObject->isInPlacement = false;
+                }
             } else if (action == GLFW_RELEASE) {
                 camera->StopRotation();
             }
@@ -270,22 +324,23 @@ private:
         glfwSetCursorPos(window->getHandle(), WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
     }
 
-    void InitObjects(){
-        std::cout << "loading objects.." << std::endl;
-       GLuint objectShaderProgramID = shader->getProgramID();
+    void PlaceObject() {
+        // Simple object placement - you can modify this to place objects at specific locations
+        // For now, just print a message indicating object placement was attempted
+        
+    }
 
-        objectLoader = new ObjectLoader(objectShaderProgramID);
-        if (objectLoader) {
-            // Load only mesh 4 (assuming 0-indexed, if it's the 5th mesh, use 4. If it's literally named mesh 4, this is how we did it before)
-            std::vector<unsigned int> meshesToLoad = {4};
-            if (!objectLoader->load("../Objects/cottage_obj.obj", meshesToLoad)) {
-                std::cerr << "Failed to load mesh 4 from model.obj with ObjectLoader." << std::endl;
-            } else {
-                std::cout << "Successfully called load for mesh 4 from model.obj." << std::endl;
-            }
-        } else {
-            std::cerr << "Failed to create ObjectLoader instance." << std::endl;
-        }
+    void InitObjects(){
+
+        std::cout << "loading objects.." << std::endl;
+        objectManager = new GameObjectManager();
+        objectLoader = new ObjectLoader(*shader);
+        objectLoader->load("../Objects/Cottage/cottage_obj.obj", {4});
+        int objectIndex = objectManager->CreateNewObject(*objectLoader);
+        gameObject = objectManager->GetGameObject(objectIndex);
+        //gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
+        gameObject->Scale(5.0f);
+        gameObject->isInPlacement = true; // Initially placed
     }
 
     void InitCamera()
@@ -343,7 +398,7 @@ private:
         float textureScale = 10.0f;
 
         grid = std::make_unique<TerrainGrid>();
-        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::VOLCANIC_CALDERA;
+        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::FLAT;
         float maxEdgeHeightForGenerator = 120.0f;
         float centralFlatRatioForGenerator = 0.25f;
 
