@@ -37,6 +37,7 @@ public:
     
     // Texture painting methods
     void PaintTexture(float worldX, float worldZ, int textureLayer, float brushRadius, float brushStrength);
+    void Flatten(float worldX, float worldZ, float brushRadius, float brushStrength); // New flatten function
     void UpdateMesh(); // Force mesh update after painting
     
 private:

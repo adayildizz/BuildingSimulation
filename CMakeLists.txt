@@ -31,6 +31,8 @@ set(SOURCES
     src/Water/Water.cpp
     src/Water/WaterRenderer.cpp
     src/Water/WaterManager.cpp
+    src/ObjectLoader/GameObject.cpp
+    src/ObjectLoader/GameObjectManager.cpp
 )
 
 # Create executable

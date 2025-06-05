@@ -169,6 +169,65 @@ void TerrainGrid::PaintTexture(float worldX, float worldZ, int textureLayer, flo
     UpdateMesh();
 }
 
+void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float brushStrength)
+{
+    std::cout << "Flatten called at world pos: (" << worldX << ", " << worldZ << ")" << std::endl;
+    
+    // Convert world coordinates to grid coordinates
+    int centerX = static_cast<int>(worldX / m_worldScale);
+    int centerZ = static_cast<int>(worldZ / m_worldScale);
+    
+    std::cout << "Grid coordinates: (" << centerX << ", " << centerZ << ")" << std::endl;
+    
+    // Calculate brush radius in grid units
+    int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
+    
+    // Get the height at the center point to flatten to
+    float centerHeight = GetHeight(centerX, centerZ);
+    float targetHeight = centerHeight - 5.0f; // Always flatten to exactly 5 units below clicked point
+    std::cout << "Target height: " << targetHeight << std::endl;
+    
+    // Iterate over the brush area
+    for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
+        for (int x = centerX - radiusInGrid; x <= centerX + radiusInGrid; x++) {
+            // Skip if outside grid bounds
+            if (x < 0 || x >= m_width || z < 0 || z >= m_depth) continue;
+            
+            // Calculate distance from brush center
+            float dx = (x - centerX) * m_worldScale;
+            float dz = (z - centerZ) * m_worldScale;
+            float distance = sqrt(dx * dx + dz * dz);
+            
+            // Skip if outside brush radius
+            if (distance > brushRadius) continue;
+            
+            // Calculate falloff based on distance
+            float falloff = 1.0f - (distance / brushRadius);
+            
+            // Get current height
+            float currentHeight = GetHeight(x, z);
+            
+            // Calculate new height - only use falloff for blending, not for strength
+            float newHeight = currentHeight + (targetHeight - currentHeight) * falloff;
+            
+            // Update height in heightmap
+            m_heightMap[z * m_width + x] = newHeight;
+            
+            if (x == centerX && z == centerZ) {
+                std::cout << "Center point - Old height: " << currentHeight << ", New height: " << newHeight << std::endl;
+            }
+        }
+    }
+    
+    std::cout << "Flattening complete" << std::endl;
+    
+    // Update min/max heights
+    CalculateMinMaxHeights();
+    
+    // Update the mesh to reflect changes
+    UpdateMesh();
+}
+
 void TerrainGrid::NormalizeSplatWeights(int x, int z)
 {
     int vertexIndex = z * m_width + x;
@@ -190,6 +249,21 @@ void TerrainGrid::NormalizeSplatWeights(int x, int z)
 
 void TerrainGrid::UpdateMesh()
 {
-    // Update the vertex buffer with new splat weights
+    // Update vertex positions based on new heights
+    for (int z = 0; z < m_depth; z++) {
+        for (int x = 0; x < m_width; x++) {
+            int vertexIndex = z * m_width + x;
+            auto& vertex = m_gridMesh->GetVertex(vertexIndex);
+            
+            // Update position with new height
+            float y = m_heightMap[vertexIndex];
+            vertex.position = vec3(x * m_worldScale, y, z * m_worldScale);
+        }
+    }
+    
+    // Recalculate normals after height changes
+    m_gridMesh->CalculateNormals(this, m_gridMesh->GetVertices());
+    
+    // Update the vertex buffer on the GPU
     m_gridMesh->UpdateVertexBuffer();
 }

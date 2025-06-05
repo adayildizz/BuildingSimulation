@@ -33,6 +33,7 @@ float ObjectPosZ = 600.0f;
 
 // Texture painting state
 bool isTexturePainting = false;
+bool isFlattening = false;  // New state for flattening
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
 float brushRadius = 15.0f;
 float brushStrength = 2.5f;
@@ -56,14 +57,11 @@ static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
 
 
 
-// Global Pointers
-std::unique_ptr<Material> m_terrainMaterial;
-std::shared_ptr<Shader> shader;
+
 GameObjectManager* objectManager;
 
 // Grid demo application
-class GridDemo
-{
+class GridDemo {
 public:
     GridDemo() = default;
     ~GridDemo() {
@@ -218,6 +216,7 @@ public:
                         objectLoader->render();
                     }
                 });
+        }
         
         // Use raycasting to position objects on terrain
         if (gameObject && gameObject->isInPlacement) {
@@ -252,7 +251,13 @@ public:
                     break;
                 case GLFW_KEY_P:
                     isTexturePainting = !isTexturePainting;
+                    isFlattening = false;  // Disable flattening when texture painting is enabled
                     std::cout << "Texture painting mode: " << (isTexturePainting ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_F:  // New key for flattening mode
+                    isFlattening = !isFlattening;
+                    isTexturePainting = false;  // Disable texture painting when flattening is enabled
+                    std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
                     break;
                 case GLFW_KEY_1:
                 case GLFW_KEY_2:
@@ -317,12 +322,21 @@ public:
         mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
         mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
-        // Update texture painting while dragging
-        if (isTexturePainting && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        // Update texture painting or flattening while dragging
+        if ((isTexturePainting || isFlattening) && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+            std::cout << "Mouse drag - Texture painting: " << isTexturePainting << ", Flattening: " << isFlattening << std::endl;
             vec3 intersectionPoint;
             if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
-                                currentTextureLayer, brushRadius, brushStrength);
+                if (isTexturePainting) {
+                    grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                    currentTextureLayer, brushRadius, brushStrength);
+                } else if (isFlattening) {
+                    std::cout << "Calling Flatten at intersection point: (" << intersectionPoint.x << ", " << intersectionPoint.z << ")" << std::endl;
+                    grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
+                                brushRadius, brushStrength);
+                }
+            } else {
+                std::cout << "No terrain intersection found" << std::endl;
             }
         } else {
             camera->OnMouse(x, y);
@@ -344,12 +358,17 @@ public:
                 camera->UpdateMousePos(x, y);
                 camera->StartRotation();
                 
-                // Handle texture painting
-                if (isTexturePainting) {
+                // Handle texture painting or flattening
+                if (isTexturePainting || isFlattening) {
                     vec3 intersectionPoint;
                     if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                        grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
-                                        currentTextureLayer, brushRadius, brushStrength);
+                        if (isTexturePainting) {
+                            grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                            currentTextureLayer, brushRadius, brushStrength);
+                        } else if (isFlattening) {
+                            grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
+                                        brushRadius, brushStrength);
+                        }
                     }
                 }
                 
