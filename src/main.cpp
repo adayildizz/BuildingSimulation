@@ -248,8 +248,13 @@ public:
 
     void PassiveMouseCB(int x, int y)
     {
-        mouseX = static_cast<double>(x);
-        mouseY = static_cast<double>(y);
+        // Get current window size
+        int currentWidth, currentHeight;
+        glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
+        
+        // Store raw coordinates but scale them to match camera's expected dimensions
+        mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
+        mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
         // Update texture painting while dragging
         if (isTexturePainting && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
@@ -267,6 +272,14 @@ public:
     {
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
+                // Get current window size and scale coordinates
+                int currentWidth, currentHeight;
+                glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
+                
+                // Scale coordinates to match camera's expected dimensions
+                mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
+                mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
+                
                 camera->UpdateMousePos(x, y);
                 camera->StartRotation();
                 
