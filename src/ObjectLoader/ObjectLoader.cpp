@@ -1,11 +1,15 @@
 #include "ObjectLoader.h"
 #include "../../include/stb/stb_image.h"
 #include <iostream>
-#include <algorithm> // Required for std::find
+#include <algorithm> 
+#include "../Core/Shader.h"// Required for std::find
 
 // Constructor
-ObjectLoader::ObjectLoader(GLuint shaderProgram) : program(shaderProgram) {
+ObjectLoader::ObjectLoader(Shader& shaderProgram) : program(shaderProgram) {
     createDefaultWhiteTexture();
+    boundingBoxCalculated = false;
+    boundingBoxMin = vec3(0.0f);
+    boundingBoxMax = vec3(0.0f);
 }
 
 // Destructor
@@ -63,6 +67,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
             continue;
         }
         aiMesh* mesh = scene->mMeshes[targetMeshIdx];
+        std::cout << "Processing mesh " << targetMeshIdx << " with material index: " << mesh->mMaterialIndex << std::endl;
         std::vector<vec4> positions;
         std::vector<vec3> normals;
         std::vector<vec2> texCoords;
@@ -192,21 +197,86 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         indexCounts.push_back(indices.size());
         meshTextureIDs.push_back(currentMeshTextureID);
     }
+    
+    // Calculate bounding box from loaded meshes
+    calculateBoundingBox(scene, meshesToLoadIndices);
+    
     return true;
 }
 
 void ObjectLoader::render() {
     // Critical: Set u_isTerrain to false to use object texture instead of terrain blending
-    glUniform1i(glGetUniformLocation(program, "u_isTerrain"), 0);
+    glUniform1i(glGetUniformLocation(program.getProgramID(), "u_isTerrain"), 0);
 
     for (size_t i = 0; i < vaos.size(); ++i) {
         // Use texture unit 4 to avoid conflicts with terrain textures (units 0-3)
         glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_2D, meshTextureIDs[i]);
-        glUniform1i(glGetUniformLocation(program, "objectTexture"), 4);
+        glUniform1i(glGetUniformLocation(program.getProgramID(), "objectTexture"), 4);
 
         glBindVertexArray(vaos[i]);
         glDrawElements(GL_TRIANGLES, indexCounts[i], GL_UNSIGNED_INT, 0);
     }
     glBindVertexArray(0);
+}
+
+void ObjectLoader::calculateBoundingBox(const aiScene* scene, const std::vector<unsigned int>& meshesToLoadIndices) {
+    if (!scene || meshesToLoadIndices.empty()) {
+        boundingBoxCalculated = false;
+        return;
+    }
+    
+    bool firstVertex = true;
+    
+    for (unsigned int targetMeshIdx : meshesToLoadIndices) {
+        if (targetMeshIdx >= scene->mNumMeshes) {
+            continue;
+        }
+        
+        aiMesh* mesh = scene->mMeshes[targetMeshIdx];
+        
+        for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
+            aiVector3D vertex = mesh->mVertices[i];
+            vec3 v(vertex.x, vertex.y, vertex.z);
+            
+            if (firstVertex) {
+                boundingBoxMin = v;
+                boundingBoxMax = v;
+                firstVertex = false;
+            } else {
+                // Update min bounds
+                if (v.x < boundingBoxMin.x) boundingBoxMin.x = v.x;
+                if (v.y < boundingBoxMin.y) boundingBoxMin.y = v.y;
+                if (v.z < boundingBoxMin.z) boundingBoxMin.z = v.z;
+                
+                // Update max bounds
+                if (v.x > boundingBoxMax.x) boundingBoxMax.x = v.x;
+                if (v.y > boundingBoxMax.y) boundingBoxMax.y = v.y;
+                if (v.z > boundingBoxMax.z) boundingBoxMax.z = v.z;
+            }
+        }
+    }
+    
+    boundingBoxCalculated = true;
+    
+    // Debug output
+    vec3 size = GetBoundingBoxSize();
+    std::cout << "Calculated bounding box: Min(" << boundingBoxMin.x << ", " << boundingBoxMin.y << ", " << boundingBoxMin.z << ") "
+              << "Max(" << boundingBoxMax.x << ", " << boundingBoxMax.y << ", " << boundingBoxMax.z << ") "
+              << "Size(" << size.x << ", " << size.y << ", " << size.z << ")" << std::endl;
+}
+
+vec3 ObjectLoader::GetBoundingBoxSize() const {
+    if (!boundingBoxCalculated) {
+        return vec3(1.0f, 1.0f, 1.0f); // Default size if not calculated
+    }
+    return boundingBoxMax - boundingBoxMin;
+}
+
+vec3 ObjectLoader::GetBoundingBoxMin() const {
+    return boundingBoxMin;
+}
+
+vec3 ObjectLoader::GetBoundingBoxMax() const {
+    return boundingBoxMax;
 }
