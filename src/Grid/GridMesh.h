@@ -8,16 +8,9 @@ class BaseGrid; // Forward declaration
 
 class GridMesh {
 public:
-    GridMesh();
-    ~GridMesh();
-
-    void CreateMesh(int width, int depth, const BaseGrid* baseGrid);
-    void Render();
-
     // Constants for texture layers - updated to 5 for sand, grass, dirt, rock, snow
     static const int MAX_TEXTURE_LAYERS = 5;
 
-private:
     // Structure for vertices
     struct Vertex {
         vec3 position;
@@ -33,9 +26,21 @@ private:
         void InitSplatWeights(const BaseGrid* baseGrid, int x, int z, float minHeight, float maxHeight);
         
         // Constructor to initialize splat weights to zero
-        Vertex() : splatWeights{0.0f, 0.0f, 0.0f, 0.0f, 0.0f} {}
+        Vertex() : splatWeights{} { splatWeights.fill(0.0f); }
     };
-    
+
+    GridMesh();
+    ~GridMesh();
+
+    void CreateMesh(int width, int depth, const BaseGrid* baseGrid);
+    void Render();
+    void UpdateVertexBuffer(); // Add method to update vertex buffer
+
+    // Access vertex data
+    Vertex& GetVertex(int index) { return m_vertices[index]; }
+    const Vertex& GetVertex(int index) const { return m_vertices[index]; }
+
+private:
     // Initialize OpenGL state
     void CreateGLState();
     
@@ -44,8 +49,8 @@ private:
     
     // Initialize vertices (positions, texCoords) and then calculate normals
     void InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& vertices);
-    void CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& vertices); // <<< ADDED: For calculating normals
-    void InitIndices(std::vector<unsigned int>& indices); // Changed uint to unsigned int for consistency
+    void CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& vertices);
+    void InitIndices(std::vector<unsigned int>& indices);
     
     // Grid dimensions
     int m_width = 0;
@@ -55,4 +60,7 @@ private:
     GLuint m_vao;
     GLuint m_vb;
     GLuint m_ib;
+
+    // Vertex data
+    std::vector<Vertex> m_vertices;
 };

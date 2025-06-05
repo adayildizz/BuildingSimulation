@@ -29,6 +29,12 @@ float objectPosX = 500.0f;
 float ObjectPosY = 10.0f;
 float ObjectPosZ = 600.0f;
 
+// Texture painting state
+bool isTexturePainting = false;
+int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
+float brushRadius = 15.0f;
+float brushStrength = 2.5f;
+
 // Constants
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
@@ -183,10 +189,30 @@ public:
                 case GLFW_KEY_C:
                     camera->Print();
                     break;
+                case GLFW_KEY_P:
+                    isTexturePainting = !isTexturePainting;
+                    std::cout << "Texture painting mode: " << (isTexturePainting ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_1:
+                case GLFW_KEY_2:
+                case GLFW_KEY_3:
+                case GLFW_KEY_4:
+                case GLFW_KEY_5:
+                    currentTextureLayer = key - GLFW_KEY_1;
+                    std::cout << "Selected texture layer: " << currentTextureLayer << std::endl;
+                    break;
+                case GLFW_KEY_EQUAL: // Increase brush size
+                    brushRadius = std::min(brushRadius * 1.2f, 50.0f);
+                    std::cout << "Brush radius: " << brushRadius << std::endl;
+                    break;
+                case GLFW_KEY_MINUS: // Decrease brush size
+                    brushRadius = std::max(brushRadius / 1.2f, 1.0f);
+                    std::cout << "Brush radius: " << brushRadius << std::endl;
+                    break;
                 case GLFW_KEY_N:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("../Objects/Cat/cat.obj", {0});
+                    obj->load("Objects/Cat/cat.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
                     //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
@@ -198,7 +224,7 @@ public:
                 case GLFW_KEY_T:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("../Objects/Tree/Tree1.obj", {0});
+                    obj->load("Objects/Tree/Tree1.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
                     //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
@@ -224,7 +250,17 @@ public:
     {
         mouseX = static_cast<double>(x);
         mouseY = static_cast<double>(y);
-        camera->OnMouse(x, y);
+        
+        // Update texture painting while dragging
+        if (isTexturePainting && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+            vec3 intersectionPoint;
+            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                currentTextureLayer, brushRadius, brushStrength);
+            }
+        } else {
+            camera->OnMouse(x, y);
+        }
     }
 
     void MouseCB(int button, int action, int x, int y)
@@ -233,6 +269,16 @@ public:
             if (action == GLFW_PRESS) {
                 camera->UpdateMousePos(x, y);
                 camera->StartRotation();
+                
+                // Handle texture painting
+                if (isTexturePainting) {
+                    vec3 intersectionPoint;
+                    if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                        grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                        currentTextureLayer, brushRadius, brushStrength);
+                    }
+                }
+                
                 // Only finalize object placement if there's an object in placement mode
                 if (gameObject && gameObject->isInPlacement) {
                     gameObject->isInPlacement = false;
@@ -274,7 +320,7 @@ private:
         std::cout << "loading objects.." << std::endl;
         objectManager = new GameObjectManager();
         objectLoader = new ObjectLoader(*shader);
-        objectLoader->load("../Objects/Cottage/cottage_obj.obj", {4});
+        objectLoader->load("Objects/Cottage/cottage_obj.obj", {4});
         int objectIndex = objectManager->CreateNewObject(*objectLoader);
         gameObject = objectManager->GetGameObject(objectIndex);
         //gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
@@ -337,7 +383,7 @@ private:
         float textureScale = 10.0f;
 
         grid = std::make_unique<TerrainGrid>();
-        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::FLAT;
+        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::VOLCANIC_CALDERA;
         float maxEdgeHeightForGenerator = 120.0f;
         float centralFlatRatioForGenerator = 0.25f;
 

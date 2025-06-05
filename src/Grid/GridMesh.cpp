@@ -81,49 +81,56 @@ void GridMesh::CreateGLState()
 
 void GridMesh::PopulateBuffers(const BaseGrid* baseGrid)
 {
-    // Create vertices
-    std::vector<Vertex> vertices;
-    vertices.resize(m_width * m_depth);
-    InitVertices(baseGrid, vertices);
-    
+    // Ensure m_vertices is the member variable
+    m_vertices.resize(m_width * m_depth); // m_width and m_depth are GridMesh members
+    InitVertices(baseGrid, m_vertices);    // Pass the member m_vertices
+
     // Create indices
     std::vector<unsigned int> indices;
     int numQuads = (m_width - 1) * (m_depth - 1);
     indices.resize(numQuads * 6); // 2 triangles per quad, 3 indices per triangle
     InitIndices(indices);
-    
+
     // Send vertex data to GPU
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0]) * vertices.size(), &vertices[0], GL_STATIC_DRAW);
-    
+    glBindBuffer(GL_ARRAY_BUFFER, m_vb); // Bind m_vb before glBufferData
+    if (!m_vertices.empty()) {
+        glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * m_vertices.size(), m_vertices.data(), GL_STATIC_DRAW);
+    } else {
+        glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_STATIC_DRAW); // Handle empty case
+    }
+
     // Send index data to GPU
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices[0]) * indices.size(), &indices[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ib); // Bind m_ib before glBufferData
+    if (!indices.empty()) {
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices[0]) * indices.size(), indices.data(), GL_STATIC_DRAW);
+    } else {
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, 0, nullptr, GL_STATIC_DRAW);
+    }
 }
 
-void GridMesh::InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& vertices)
+void GridMesh::InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& vertices_ref)
 {
-    // Cast to TerrainGrid to get height range information
     const TerrainGrid* terrainGrid = dynamic_cast<const TerrainGrid*>(baseGrid);
     float minHeight = terrainGrid ? terrainGrid->GetMinHeight() : 0.0f;
     float maxHeight = terrainGrid ? terrainGrid->GetMaxHeight() : 1.0f;
-    
+
     int index = 0;
-    
-    for (int z = 0; z < m_depth; z++) {
-        for (int x = 0; x < m_width; x++) {
-            assert(index < (int)vertices.size());
-            vertices[index].InitPosAndTex(baseGrid, x, z);
-            vertices[index].InitSplatWeights(baseGrid, x, z, minHeight, maxHeight);
+
+    for (int z = 0; z < m_depth; z++) { // Use GridMesh's m_depth
+        for (int x = 0; x < m_width; x++) { // Use GridMesh's m_width
+            if (index < vertices_ref.size()) { // Check bounds
+                vertices_ref[index].InitPosAndTex(baseGrid, x, z);
+                vertices_ref[index].InitSplatWeights(baseGrid, x, z, minHeight, maxHeight);
+            }
             index++;
         }
     }
-    
-    assert(index == (int)vertices.size());
 
-    // After all positions are set, calculate normals
-    CalculateNormals(baseGrid, vertices);
+    // After all positions are set, calculate normals using the same vertices_ref
+    CalculateNormals(baseGrid, vertices_ref);
 }
 
-void GridMesh::CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& vertices)
+void GridMesh::CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& vertices_ref)
 {
     if (!baseGrid) return;
 
@@ -155,7 +162,7 @@ void GridMesh::CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& v
             } else if (x == m_width - 1) { // Right edge
                  tangentX = vec3(baseGrid->GetWorldScale(), baseGrid->GetHeight(x, z) - baseGrid->GetHeight(x - 1, z), 0.0f);
             } else { // Interior X
-                 tangentX = vec3(2.0f * baseGrid->GetWorldScale(), hR - hL, 0.0f);
+                 tangentX = vec3(2.0f * baseGrid->GetWorldScale(), baseGrid->GetHeight(std::min(m_width - 1, x + 1), z) - baseGrid->GetHeight(std::max(0, x - 1), z), 0.0f);
             }
 
             if (z == 0) { // Bottom edge
@@ -163,7 +170,7 @@ void GridMesh::CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& v
             } else if (z == m_depth - 1) { // Top edge
                 tangentZ = vec3(0.0f, baseGrid->GetHeight(x, z) - baseGrid->GetHeight(x, z - 1), baseGrid->GetWorldScale());
             } else { // Interior Z
-                tangentZ = vec3(0.0f, hU - hD, 2.0f * baseGrid->GetWorldScale());
+                tangentZ = vec3(0.0f, baseGrid->GetHeight(x, std::min(m_depth - 1, z + 1)) - baseGrid->GetHeight(x, std::max(0, z - 1)), 2.0f * baseGrid->GetWorldScale());
             }
             
             // The cross product gives the normal. Order matters for direction (Y-up).
@@ -176,7 +183,9 @@ void GridMesh::CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& v
                 normal = vec3(0.0f, 1.0f, 0.0f);
             }
 
-            vertices[z * m_width + x].normal = normal;
+            if ((z * m_width + x) < vertices_ref.size()){ // Check bounds
+                vertices_ref[z * m_width + x].normal = normal;
+            }
         }
     }
 }
@@ -295,4 +304,13 @@ void GridMesh::Render()
     glBindVertexArray(m_vao);
     glDrawElements(GL_TRIANGLES, (m_width - 1) * (m_depth - 1) * 6, GL_UNSIGNED_INT, NULL);
     glBindVertexArray(0);
+}
+
+void GridMesh::UpdateVertexBuffer()
+{
+    glBindBuffer(GL_ARRAY_BUFFER, m_vb);
+    if (!m_vertices.empty()) { // Check if m_vertices is empty
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(Vertex) * m_vertices.size(), m_vertices.data());
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 } 

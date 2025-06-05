@@ -122,3 +122,74 @@ float TerrainGrid::GetHeightAtWorldPos(float worldX, float worldZ) const {
     
     return height;
 }
+
+void TerrainGrid::PaintTexture(float worldX, float worldZ, int textureLayer, float brushRadius, float brushStrength)
+{
+    // Convert world coordinates to grid coordinates
+    int centerX = static_cast<int>(worldX / m_worldScale);
+    int centerZ = static_cast<int>(worldZ / m_worldScale);
+    
+    // Calculate brush radius in grid units
+    int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
+    
+    // Clamp texture layer to valid range
+    textureLayer = std::clamp(textureLayer, 0, GridMesh::MAX_TEXTURE_LAYERS - 1);
+    
+    // Iterate over the brush area
+    for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
+        for (int x = centerX - radiusInGrid; x <= centerX + radiusInGrid; x++) {
+            // Skip if outside grid bounds
+            if (x < 0 || x >= m_width || z < 0 || z >= m_depth) continue;
+            
+            // Calculate distance from brush center
+            float dx = (x - centerX) * m_worldScale;
+            float dz = (z - centerZ) * m_worldScale;
+            float distance = sqrt(dx * dx + dz * dz);
+            
+            // Skip if outside brush radius
+            if (distance > brushRadius) continue;
+            
+            // Calculate falloff based on distance
+            float falloff = 1.0f - (distance / brushRadius);
+            float strength = brushStrength * falloff;
+            
+            // Get current vertex
+            int vertexIndex = z * m_width + x;
+            auto& vertex = m_gridMesh->GetVertex(vertexIndex);
+            
+            // Increase weight for selected texture layer
+            vertex.splatWeights[textureLayer] += strength;
+            
+            // Normalize weights
+            NormalizeSplatWeights(x, z);
+        }
+    }
+    
+    // Update the mesh to reflect changes
+    UpdateMesh();
+}
+
+void TerrainGrid::NormalizeSplatWeights(int x, int z)
+{
+    int vertexIndex = z * m_width + x;
+    auto& vertex = m_gridMesh->GetVertex(vertexIndex);
+    
+    // Calculate sum of weights
+    float sum = 0.0f;
+    for (int i = 0; i < GridMesh::MAX_TEXTURE_LAYERS; i++) {
+        sum += vertex.splatWeights[i];
+    }
+    
+    // Normalize if sum is not zero
+    if (sum > 0.0f) {
+        for (int i = 0; i < GridMesh::MAX_TEXTURE_LAYERS; i++) {
+            vertex.splatWeights[i] /= sum;
+        }
+    }
+}
+
+void TerrainGrid::UpdateMesh()
+{
+    // Update the vertex buffer with new splat weights
+    m_gridMesh->UpdateVertexBuffer();
+}
