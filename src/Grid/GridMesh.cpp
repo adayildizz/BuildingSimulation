@@ -84,13 +84,13 @@ void GridMesh::PopulateBuffers(const BaseGrid* baseGrid)
     // Ensure m_vertices is the member variable
     m_vertices.resize(m_width * m_depth); // m_width and m_depth are GridMesh members
     InitVertices(baseGrid, m_vertices);    // Pass the member m_vertices
-
+    
     // Create indices
     std::vector<unsigned int> indices;
     int numQuads = (m_width - 1) * (m_depth - 1);
     indices.resize(numQuads * 6); // 2 triangles per quad, 3 indices per triangle
     InitIndices(indices);
-
+    
     // Send vertex data to GPU
     glBindBuffer(GL_ARRAY_BUFFER, m_vb); // Bind m_vb before glBufferData
     if (!m_vertices.empty()) {
@@ -98,7 +98,7 @@ void GridMesh::PopulateBuffers(const BaseGrid* baseGrid)
     } else {
         glBufferData(GL_ARRAY_BUFFER, 0, nullptr, GL_STATIC_DRAW); // Handle empty case
     }
-
+    
     // Send index data to GPU
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ib); // Bind m_ib before glBufferData
     if (!indices.empty()) {
@@ -115,7 +115,7 @@ void GridMesh::InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& verti
     float maxHeight = terrainGrid ? terrainGrid->GetMaxHeight() : 1.0f;
 
     int index = 0;
-
+    
     for (int z = 0; z < m_depth; z++) { // Use GridMesh's m_depth
         for (int x = 0; x < m_width; x++) { // Use GridMesh's m_width
             if (index < vertices_ref.size()) { // Check bounds
@@ -125,7 +125,7 @@ void GridMesh::InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& verti
             index++;
         }
     }
-
+    
     // After all positions are set, calculate normals using the same vertices_ref
     CalculateNormals(baseGrid, vertices_ref);
 }
