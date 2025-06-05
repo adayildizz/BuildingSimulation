@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Find required packages
 find_package(OpenGL REQUIRED)
-find_package(glfw3 REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
+find_package(GLEW CONFIG REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 
 # Add source files
 set(SOURCES
@@ -26,10 +28,9 @@ set(SOURCES
     src/Grid/GridMesh.cpp
     src/Grid/TerrainGenerator.cpp
     src/ObjectLoader/ObjectLoader.cpp
+    src/Water/Water.cpp
+    src/Water/WaterRenderer.cpp
 )
-
-set(ASSIMP_SRC_DIR ${CMAKE_SOURCE_DIR}/include/assimp)
-set(ASSIMP_BUILD_DIR ${ASSIMP_SRC_DIR}/build)
 
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -37,19 +38,20 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${OPENGL_INCLUDE_DIR}
+    ${GLEW_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/include
-    ${ASSIMP_SRC_DIR}/include      # Assimp's source include directory
-    ${ASSIMP_BUILD_DIR}/include   # Assimp's build include directory (for generated headers like config.h)
     ${CMAKE_SOURCE_DIR}/src
 )
 
-# Define GL_SILENCE_DEPRECATION to silence OpenGL deprecation warnings on macOS
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    GL_SILENCE_DEPRECATION
-)
+if (APPLE)
+    # Define GL_SILENCE_DEPRECATION to silence OpenGL deprecation warnings on macOS
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        GL_SILENCE_DEPRECATION
+    )
+endif()
 
 target_link_directories(${PROJECT_NAME} PRIVATE
-    ${ASSIMP_BUILD_DIR}/lib         # Assimp built static/shared libs
+    ${CMAKE_SOURCE_DIR}/include
 )
 
 
@@ -57,7 +59,8 @@ target_link_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenGL::GL
     glfw
-    ${ASSIMP_BUILD_DIR}/bin/libassimp.dylib
+    GLEW::GLEW
+    assimp::assimp
 )
 
 # Copy shader files to build directory
