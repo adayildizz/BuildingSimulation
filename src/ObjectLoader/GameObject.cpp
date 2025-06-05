@@ -81,6 +81,14 @@ void GameObject::Render(){
     objectLoader->render();
 }
 
+void GameObject::RenderForDepthPass(Shader& depthShader) {
+    // Assumes depthShader is already in use
+    depthShader.setUniform("gModelMatrix", objectModelMatrix);
+    if (objectLoader) { // Make sure objectLoader is valid
+        objectLoader->RenderMeshOnly();
+    }
+}
+
 
 vec3 GameObject::GetBoundingBoxSize() const {
     return objectLoader->GetBoundingBoxSize() * scale;

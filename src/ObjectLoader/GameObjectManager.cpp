@@ -15,15 +15,24 @@ int GameObjectManager::CreateNewObject(ObjectLoader &objectLoader){
 
 
 GameObject* GameObjectManager::GetGameObject(int index){
-    try{
+    if (index >= 0 && static_cast<size_t>(index) < gameObjects.size()) {
         return gameObjects[index];
-    }catch(std::exception& ex){
+    } else {
         std::cout << "Index Out of Bounds for index " << index << std::endl;
+        return nullptr; // Return nullptr if index is invalid
     }
 }
 
 void GameObjectManager::RenderAll(){
     for(int i = 0; i<gameObjects.size();i++){
         gameObjects[i]->Render();
+    }
+}
+
+void GameObjectManager::RenderAllForDepthPass(Shader& depthShader) {
+    for(GameObject* obj : gameObjects) {
+        if (obj) { // Check if object is valid
+            obj->RenderForDepthPass(depthShader);
+        }
     }
 }

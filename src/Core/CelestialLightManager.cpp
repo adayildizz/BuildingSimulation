@@ -4,7 +4,7 @@
 
 CelestialLightManager::CelestialLightManager()
     : m_timeOfDay(0.0f),
-      m_dayCycleSpeed(0.3f), // You can make this configurable
+      m_dayCycleSpeed(0.2f), // You can make this configurable
       m_daySkyColor(0.529f, 0.808f, 0.922f),
       m_nightSkyColor(0.0f, 0.0f, 0.0f),
       m_sunDayColor(1.0f, 1.0f, 0.95f),

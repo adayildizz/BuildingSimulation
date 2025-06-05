@@ -10,6 +10,7 @@ class GameObjectManager{
         int CreateNewObject(ObjectLoader &objectLoader);
         GameObject* GetGameObject(int index);
         void RenderAll();
+        void RenderAllForDepthPass(Shader& depthShader);
 
     private:
         std::vector<GameObject*> gameObjects;

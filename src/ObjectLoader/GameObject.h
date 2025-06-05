@@ -16,6 +16,7 @@ class GameObject{
         void Scale(float amount);
         vec4 GetPosition();
         void Render();
+        void RenderForDepthPass(Shader& depthShader);
         mat4 objectModelMatrix;
         bool isInPlacement;
         

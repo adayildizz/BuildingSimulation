@@ -17,6 +17,7 @@ public:
 
     bool load(const std::string& filename, const std::vector<unsigned int>& meshesToLoadIndices = {});
     void render();
+    void RenderMeshOnly();
     Shader program;
     
     // Bounding box methods

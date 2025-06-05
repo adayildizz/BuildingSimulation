@@ -219,6 +219,14 @@ void ObjectLoader::render() {
     }
     glBindVertexArray(0);
 }
+void ObjectLoader::RenderMeshOnly() {
+    // This method just binds VAOs and draws, assumes shader and uniforms are set externally.
+    for (size_t i = 0; i < vaos.size(); ++i) {
+        glBindVertexArray(vaos[i]);
+        glDrawElements(GL_TRIANGLES, indexCounts[i], GL_UNSIGNED_INT, 0);
+    }
+    glBindVertexArray(0);
+}
 
 void ObjectLoader::calculateBoundingBox(const aiScene* scene, const std::vector<unsigned int>& meshesToLoadIndices) {
     if (!scene || meshesToLoadIndices.empty()) {

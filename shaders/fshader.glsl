@@ -2,49 +2,49 @@
 
 layout(location = 0) out vec4 FragColor;
 
-in vec4 baseColor;
-in vec2 outTexCoord;      // Texture coordinates from vertex shader
-in vec3 outWorldPos;      // World position from vertex shader
-in vec3 outNormal_world;  // World-space normal from vertex shader
+// Inputs from Vertex Shader
+in vec4 baseColor;          // Vertex color (if used)
+in vec2 outTexCoord;        // Texture coordinates
+in vec3 outWorldPos;        // World position
+in vec3 outNormal_world;    // World-space normal
+in vec4 outFragPosLightSpace; // Fragment position from light's perspective
 
-// Texture samplers for terrain layers
-uniform sampler2D gTextureHeight0;
-uniform sampler2D gTextureHeight1;
-uniform sampler2D gTextureHeight2;
-uniform sampler2D gTextureHeight3;
+// Texture samplers
+uniform sampler2D gTextureHeight0; // Terrain texture layer 0
+uniform sampler2D gTextureHeight1; // Terrain texture layer 1
+uniform sampler2D gTextureHeight2; // Terrain texture layer 2
+uniform sampler2D gTextureHeight3; // Terrain texture layer 3
+uniform sampler2D objectTexture;   // Texture for objects
+uniform sampler2D shadowMap;       // Shadow map
 
-// Separate texture sampler for objects
-uniform sampler2D objectTexture;
-
-// Height thresholds for blending textures (for terrain)
+// Uniforms for terrain blending
 uniform float gHeight0;
 uniform float gHeight1;
 uniform float gHeight2;
 uniform float gHeight3;
 
-// Light Structure
+// Light structure
 struct DirectionalLight {
     vec3 color;
     float ambientIntensity;
-    vec3 direction;         // Direction *from which* light comes (WORLD SPACE)
+    vec3 direction;       // Direction *from which* light comes (WORLD SPACE)
     float diffuseIntensity;
 };
 uniform DirectionalLight directionalLight;
 
-// Material Properties
+// Material properties
 struct Material {
     float specularIntensity;
     float shininess;
 };
 uniform Material material;
 
-// Camera's world position
-uniform vec3 gViewPosition_world;
+// Global uniforms
+uniform vec3 gViewPosition_world; // Camera's world position
+uniform bool u_isTerrain;         // Flag to differentiate terrain and objects
+uniform float u_shadowBias;      // Bias for shadow calculation
 
-// NEW: Uniform to differentiate between terrain and object
-uniform bool u_isTerrain;
-
-// Function to calculate blended texture color based on height (for terrain)
+// Function to calculate blended texture color for terrain
 vec4 CalculateBlendedTextureColor()
 {
     vec4 finalTexColor;
@@ -78,20 +78,56 @@ vec4 CalculateBlendedTextureColor()
     return finalTexColor;
 }
 
+// Shadow Calculation Function
+float CalculateShadowFactor()
+{
+    // Perspective divide for outFragPosLightSpace
+    vec3 projCoords = outFragPosLightSpace.xyz / outFragPosLightSpace.w;
+
+    // Transform to [0,1] range for texture coordinates
+    projCoords = projCoords * 0.5 + 0.5;
+
+    // Check if the fragment is outside the light's frustum's Z-depth range [0,1]
+    if (projCoords.z > 1.0) { // If beyond light's far plane, consider it lit
+        return 1.0;
+    }
+    // Check if the fragment is outside the light's frustum's XY-range [0,1]
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) {
+        return 1.0; // Not in shadow map's XY area (e.g. due to GL_CLAMP_TO_BORDER not working perfectly), assume lit
+    }
+    
+    // Get current fragment's depth from light's perspective
+    float currentDepth = projCoords.z;
+    
+    // Sample shadow map
+    float shadowMapDepth = texture(shadowMap, projCoords.xy).r; // .r because depth map is single channel
+
+    // Check if fragment is in shadow
+    float shadow = 1.0; // Assume lit
+    if (currentDepth > shadowMapDepth + u_shadowBias) {
+        shadow = 0.0; // In shadow
+    }
+    
+    return shadow;
+}
+
 void main()
 {
     vec4 albedo;
-
     if (u_isTerrain) {
         albedo = CalculateBlendedTextureColor();
     } else {
-        // Object rendering: Use the dedicated object texture sampler
         albedo = texture(objectTexture, outTexCoord);
+        // If objects have vertex colors you want to use (passed as 'baseColor'):
+        // albedo *= baseColor; // Or however you intend to use vColor (baseColor)
     }
 
+    // If albedo has 0 alpha from texture and you want it opaque for lighting
+    if (albedo.a < 0.1) albedo.a = 1.0;
+
     vec3 N_world = normalize(outNormal_world);
-    vec3 L_world = normalize(directionalLight.direction); // Points from surface TO light
-    vec3 I_world = -L_world;                             // Incident light vector
+    vec3 L_world = normalize(directionalLight.direction); // Points from surface TO light source
+    vec3 I_world = -L_world;                              // Incident light vector (FROM light source TO surface)
 
     // Ambient Lighting
     vec3 ambient_lighting_color = directionalLight.ambientIntensity * directionalLight.color;
@@ -102,7 +138,7 @@ void main()
 
     // Specular Lighting
     vec3 specular_lighting_color = vec3(0.0);
-    if (N_dot_L > 0.0) // Only if light hits the front face
+    if (N_dot_L > 0.0)
     {
         vec3 V_world = normalize(gViewPosition_world - outWorldPos); // View vector
         vec3 R_world = reflect(I_world, N_world);                    // Reflected light vector
@@ -111,8 +147,13 @@ void main()
         specular_lighting_color = material.specularIntensity * specFactor * directionalLight.color;
     }
 
-    // Combine lighting components
-    vec3 finalColor = albedo.rgb * (ambient_lighting_color + diffuse_lighting_color) + specular_lighting_color;
+    // Get shadow factor
+    float shadowFactor = CalculateShadowFactor();
+
+    // Combine lighting components, modulated by shadow factor
+    // Shadow affects diffuse and specular, but not typically ambient (or less so)
+    vec3 finalColor = albedo.rgb * ambient_lighting_color +
+                      shadowFactor * (albedo.rgb * diffuse_lighting_color + specular_lighting_color);
 
     FragColor = vec4(finalColor, albedo.a);
 }

@@ -46,6 +46,13 @@ std::unique_ptr<Material> m_terrainMaterial;
 std::shared_ptr<Shader> shader;
 GameObjectManager* objectManager;
 
+//shadow properties
+GLuint m_shadowMapFBO;
+GLuint m_shadowMapTexture;
+const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048; // Or other desired resolution
+std::shared_ptr<Shader> m_depthShader; // For the depth pass
+mat4 m_lightSpaceMatrix; // To store the light's combined view-projection matrix
+
 // Grid demo application
 class GridDemo
 {
@@ -55,6 +62,13 @@ public:
         if (objectLoader) {
             delete objectLoader;
             objectLoader = nullptr;
+        }
+        
+        if (m_shadowMapFBO != 0) {
+            glDeleteFramebuffers(1, &m_shadowMapFBO);
+        }
+        if (m_shadowMapTexture != 0) {
+            glDeleteTextures(1, &m_shadowMapTexture);
         }
     }
 
@@ -69,6 +83,7 @@ public:
         InitGrid();
         InitObjects();
         InitLight();
+        InitShadows();
         m_celestialLightManager = std::make_unique<CelestialLightManager>(); // INITIALIZE LIGHT MANAGER
     }
 
@@ -95,45 +110,103 @@ public:
 
     void RenderScene()
     {
-        // --- Get Sky Color and Configure Light from CelestialLightManager ---
-        vec3 currentSkyColor = vec3(0.0f); // Default to black if manager not ready
+        // --- Calculate Light Space Matrix ---
+        vec3 lightDir = vec3(0.0f, -1.0f, 0.0f); // Default direction
+
         if (m_celestialLightManager) {
-            currentSkyColor = m_celestialLightManager->GetCurrentSkyColor();
-            if (light) { // light is the std::unique_ptr<Light>
-                m_celestialLightManager->ConfigureLight(light.get());
+            // CelestialLightManager's Update() should have been called in the main loop (GridDemo::Run)
+            // to update its internal time and properties.
+            // GetActiveLightDirection() will return the latest calculated direction.
+            vec3 activeDir = m_celestialLightManager->GetActiveLightDirection(); //
+            if (length(activeDir) > 0.001f) { // Ensure direction is not zero
+                lightDir = normalize(activeDir);
             }
+            // Configure the main 'light' object. This updates its internal state.
+            // The light->UseLight() call later will use these updated values.
+            if(light) {
+                m_celestialLightManager->ConfigureLight(light.get()); //
+            }
+        }
+        // If m_celestialLightManager is null, lightDir will remain the default,
+        // and the 'light' object will use its last configured or initial state.
+
+        // Define the extents of the light's view volume for orthographic projection
+        float near_plane_light = 1.0f;
+        float far_plane_light = 2500.0f;
+        float orthoSize = 800.0f; // Adjust to fit your scene elements
+
+        mat4 lightProjection = Angel::Ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane_light, far_plane_light);
+
+        vec3 sceneFocusPoint = vec3((GRID_SIZE * grid->GetWorldScale()) / 2.0f, 0.0f, (GRID_SIZE * grid->GetWorldScale()) / 2.0f);
+        vec3 lightActualPos = sceneFocusPoint - lightDir * 1000.0f; // Position light source based on direction
+
+        mat4 lightView = Angel::LookAt(lightActualPos, sceneFocusPoint, vec3(0.0, 1.0, 0.0));
+        m_lightSpaceMatrix = lightProjection * lightView;
+
+
+        // ====== PASS 1: Render Scene to Depth Map (from light's perspective) ======
+        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_shadowMapFBO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        if (m_depthShader && m_depthShader->isValid()) {
+            m_depthShader->use();
+            m_depthShader->setUniform("lightSpaceMatrix", m_lightSpaceMatrix);
+
+            glCullFace(GL_FRONT); // Mitigate Peter Panning
+            if (objectManager) {
+                objectManager->RenderAllForDepthPass(*m_depthShader);
+            }
+            glCullFace(GL_BACK); // Reset culling
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        // ====== PASS 2: Render Scene Normally (from camera's perspective) ======
+        int currentWindowWidth, currentWindowHeight;
+        glfwGetFramebufferSize(window->getHandle(), &currentWindowWidth, &currentWindowHeight);
+        glViewport(0, 0, currentWindowWidth, currentWindowHeight);
+        
+        vec3 currentSkyColor = vec3(0.0f);
+        if (m_celestialLightManager) {
+            currentSkyColor = m_celestialLightManager->GetCurrentSkyColor(); //
+            // The light object is already configured above by m_celestialLightManager->ConfigureLight(light.get());
         }
         
         glClearColor(currentSkyColor.x, currentSkyColor.y, currentSkyColor.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
-        // Use the unified shader for all rendering
+        if (!shader || !shader->isValid()) {
+            std::cerr << "Main shader is not valid!" << std::endl;
+            return;
+        }
         shader->use();
 
-        // --- Set Global Uniforms (used by both terrain and objects) ---
-        mat4 viewProjMatrix = camera->GetViewProjMatrix();
+        mat4 viewProjMatrix = camera->GetViewProjMatrix(); //
         shader->setUniform("gVP", viewProjMatrix);
-        shader->setUniform("gViewPosition_world", camera->GetPosition());
+        shader->setUniform("gViewPosition_world", camera->GetPosition()); //
+        shader->setUniform("lightSpaceMatrix", m_lightSpaceMatrix);
 
-        // Light Uniforms (The 'light' object is now configured by CelestialLightManager)
-        if (light && shader->isValid()) {
+        glActiveTexture(GL_TEXTURE5);
+        glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
+        shader->setUniform("shadowMap", 5);
+        shader->setUniform("u_shadowBias", 0.005f);
+
+        if (light) {
             GLuint shaderID = shader->getProgramID();
             GLint ambientIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.ambientIntensity");
             GLint ambientColorLoc     = glGetUniformLocation(shaderID, "directionalLight.color");
             GLint diffuseIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.diffuseIntensity");
             GLint directionLoc        = glGetUniformLocation(shaderID, "directionalLight.direction");
-            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc); // Use the configured light
+            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc); //
         }
 
-        // --- Render Terrain ---
         shader->setUniform("u_isTerrain", true);
-
-        if (m_terrainMaterial && shader->isValid()) {
+        if (m_terrainMaterial) {
             GLuint shaderID = shader->getProgramID();
             GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
             GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
-            m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
+            m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc); //
         }
         shader->setUniform("gMinHeight", m_minTerrainHeight);
         shader->setUniform("gMaxHeight", m_maxTerrainHeight);
@@ -142,30 +215,34 @@ public:
 
         for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
             if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
-                m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
+                GLenum texUnitEnum = GL_TEXTURE0 + static_cast<GLenum>(i);
+                m_terrainTextures[i]->Bind(texUnitEnum); //
                 shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
                 shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
             }
         }
-        grid->Render();
+        if (grid) {
+            grid->Render();
+        }
 
-        // --- Render Objects ---
         shader->setUniform("u_isTerrain", false);
         
-        // Use raycasting to position objects on terrain
         if (gameObject && gameObject->isInPlacement) {
-            vec3 intersectionPoint;
-            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                // Center the object on the cursor by offsetting by half its width and depth
+            vec3 intersectionPointTerrain;
+            // The GetTerrainIntersection method is part of your Camera class's interface,
+            // its implementation might use ScreenToWorldRay and other logic.
+            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPointTerrain)) {
                 float halfWidth = gameObject->GetWidth() / 2.0f;
                 float halfDepth = gameObject->GetDepth() / 2.0f;
-                gameObject->SetPosition(vec4(intersectionPoint.x - halfDepth, 
-                                           intersectionPoint.y, 
-                                           intersectionPoint.z - halfWidth, 1.0f));
+                gameObject->SetPosition(vec4(intersectionPointTerrain.x - halfDepth,
+                                           intersectionPointTerrain.y,
+                                           intersectionPointTerrain.z - halfWidth, 1.0f));
             }
         }
         
-        objectManager->RenderAll();
+        if (objectManager) {
+            objectManager->RenderAll();
+        }
     }
 
     void KeyboardCB(int key, int action)
@@ -182,11 +259,11 @@ public:
                     break;
                 case GLFW_KEY_C:
                     camera->Print();
-                    break;
+                    break; 
                 case GLFW_KEY_N:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("../Objects/Cat/cat.obj", {0});
+                    obj->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/Objects/Cat/cat.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
                     //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
@@ -198,7 +275,7 @@ public:
                 case GLFW_KEY_T:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("../Objects/Tree/Tree1.obj", {0});
+                    obj->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/Objects/Tree/Tree1.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
                     //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
@@ -273,7 +350,7 @@ private:
         std::cout << "loading objects.." << std::endl;
         objectManager = new GameObjectManager();
         objectLoader = new ObjectLoader(*shader);
-        objectLoader->load("../Objects/Cottage/cottage_obj.obj", {4});
+        objectLoader->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/Objects/Cottage/cottage_obj.obj", {4});
         int objectIndex = objectManager->CreateNewObject(*objectLoader);
         gameObject = objectManager->GetGameObject(objectIndex);
         //gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
@@ -316,13 +393,50 @@ private:
                                         initialDirectionX, initialDirectionY, initialDirectionZ, initialDiffuseIntensity);
         std::cout << "Directional Light object created." << std::endl;
     }
+    
+    void InitShadows()
+    {
+        // 1. Load the depth shader
+        auto& shaderManager = ShaderManager::getInstance();
+        m_depthShader = shaderManager.loadShader("depthShader",
+                                                 "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/depth_vshader.glsl",
+                                                 "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/depth_fshader.glsl");
+        if (!m_depthShader) {
+            std::cerr << "Failed to load depth shader!" << std::endl;
+            // Handle error
+        } 
+
+        // 2. Create the depth texture
+        glGenTextures(1, &m_shadowMapTexture);
+        glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); // Or GL_LINEAR for softer shadows with PCF
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // Or GL_LINEAR
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER); // Avoid sampling outside texture
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f }; // Areas outside shadow map are lit
+        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+
+        // 3. Create and configure the FBO
+        glGenFramebuffers(1, &m_shadowMapFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_shadowMapFBO);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_shadowMapTexture, 0);
+        glDrawBuffer(GL_NONE); // We don't need to draw color data
+        glReadBuffer(GL_NONE);
+
+        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+            std::cerr << "Framebuffer not complete!" << std::endl;
+            // Handle error
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind
+    }
 
     void InitShader()
     {
         auto& shaderManager = ShaderManager::getInstance();
         shader = shaderManager.loadShader("unifiedShader",
-                                        "shaders/vshader.glsl",
-                                        "shaders/fshader.glsl");
+                                          "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/vshader.glsl",
+                                          "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/fshader.glsl");
         if (!shader) {
             std::cerr << "Failed to load unified shader (shaders/vshader.glsl, shaders/fshader.glsl)" << std::endl;
             exit(-1);
@@ -348,10 +462,10 @@ private:
 
         const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
-            "resources/textures/grass.jpg",
-            "resources/textures/dirt.jpg",
-            "resources/textures/rock.jpg",
-            "resources/textures/snow.jpg"
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/grass.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/dirt.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/rock.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/snow.jpg"
         };
 
         m_terrainTextures.clear();
