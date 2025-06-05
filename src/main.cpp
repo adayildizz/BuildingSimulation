@@ -10,7 +10,7 @@
 #include "Angel.h"
 #include "Core/CelestialLightManager.h"
 #include "Water/Water.h"
-#include "Water/WaterRenderer.h"
+
 
 #include <iostream>
 #include <memory>
@@ -34,14 +34,19 @@ const int WINDOW_HEIGHT = 1080;
 const int GRID_SIZE = 250; // Size of the grid
 ObjectLoader* objectLoader;
 
+// Global Pointers
+std::unique_ptr<Material> m_terrainMaterial;
+std::shared_ptr<Shader> shader;
+std::shared_ptr<Shader> dummyProgram; // Water Program
+
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void CursorPosCallback(GLFWwindow* window, double x, double y);
 static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode);
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
-// Global Pointers
-std::unique_ptr<Material> m_terrainMaterial;
-std::shared_ptr<Shader> shader;
+
+
+
 
 // Grid demo application
 class GridDemo
@@ -66,7 +71,7 @@ public:
         InitObjects();
         InitLight();
         InitWater();
-        InitWaterRenderer();
+        
         m_celestialLightManager = std::make_unique<CelestialLightManager>();
     }
 
@@ -168,28 +173,17 @@ public:
         }
 
         // --- Render Water ---
-        if (water && waterRenderer) {
+        if (water && dummyProgram) {
+            dummyProgram->use();
             
-            // First do reflection pass
-            waterRenderer->ReflectionPass(*camera, *shader, [this]() {
-                // Render scene from reflected camera
-                grid->Render();
-                if (objectLoader) {
-                    objectLoader->render();
-                }
-            });
-
-            // Then do refraction pass
-            waterRenderer->RefractionPass(*camera, *shader, [this]() {
-                // Render scene from normal camera
-                grid->Render();
-                if (objectLoader) {
-                    objectLoader->render();
-                }
-            });
-
-            // Finally render water with both textures
-            water->draw(*waterRenderer->GetReflectionTexture(), *waterRenderer->GetRefractionTexture());
+            // Bind the dummy texture
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, water->dummyTexture);
+            
+            // Bind water VAO and render
+            glBindVertexArray(water->dummyVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 3); // 3 vertices for the dummy quad
+            glBindVertexArray(0);
         }
     }
 
@@ -382,67 +376,27 @@ private:
     }
 
     void InitWater() {
-        // Create water shader program
-        waterProgram = std::make_shared<Shader>();
-        if (!waterProgram->loadFromFiles("shaders/water_vert.glsl", "shaders/water_frag.glsl")) {
+        // Initialize water program
+        dummyProgram = std::make_shared<Shader>();
+        if (!dummyProgram->loadFromFiles("shaders/dummy_vert.glsl", "shaders/dummy_frag.glsl")) {
             std::cerr << "Failed to load water shaders" << std::endl;
             return;
         }
 
-        // Create water mesh data with size 200 (increased from 100)
-        const int size = 200;
-        const float halfSize = size / 2.0f;
-        
-        // Generate vertices
-        std::vector<vec4> positions;
-        std::vector<vec2> texCoords;
-        for (int z = 0; z <= size; z++) {
-            for (int x = 0; x <= size; x++) {
-                // Position the water at y=100 and center it in the scene
-                float xPos = (x - halfSize) + 500.0f;  // Center at x=500
-                float zPos = (z - halfSize) + 500.0f;  // Center at z=500
-                positions.push_back(vec4(xPos, 100.0f, zPos, 1.0f));  // Raise water to y=100
-                
-                // Texture coordinates
-                float u = static_cast<float>(x) / size;
-                float v = static_cast<float>(z) / size;
-                texCoords.push_back(vec2(u, v));
-            }
-        }
-
-        // Generate indices
-        std::vector<GLuint> indices;
-        for (int z = 0; z < size; z++) {
-            for (int x = 0; x < size; x++) {
-                int topLeft = z * (size + 1) + x;
-                int topRight = topLeft + 1;
-                int bottomLeft = (z + 1) * (size + 1) + x;
-                int bottomRight = bottomLeft + 1;
-
-                // First triangle
-                indices.push_back(topLeft);
-                indices.push_back(bottomLeft);
-                indices.push_back(topRight);
-
-                // Second triangle
-                indices.push_back(topRight);
-                indices.push_back(bottomLeft);
-                indices.push_back(bottomRight);
-            }
-        }
-
         // Create water instance
-        water = std::make_unique<Water>(waterProgram.get());
+        water = std::make_unique<Water>(dummyProgram.get());
         
-        // Initialize the mesh
-        water->initMesh(positions, texCoords, indices);
+        // Generate water mesh
+        water->generateMesh();
+        water->createWaterMeshVAO();
+        
+        // Create dummy FBO and texture for water reflections
+        water->createDummy();
+        water->dummyFBO = water->createFBO(water->dummyTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
+        
     }
 
-    void InitWaterRenderer() {
-        waterRenderer = std::make_unique<WaterRenderer>(WINDOW_WIDTH, WINDOW_HEIGHT, waterProgram.get());
-        waterRenderer->Init();
-    }
-
+ 
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
@@ -457,16 +411,10 @@ private:
     std::vector<float> m_terrainTextureTransitionHeights;
     static const int MAX_SHADER_TEXTURE_LAYERS = 4;
 
-    std::shared_ptr<Shader> waterProgram;
+   
     std::unique_ptr<Water> water;
-    std::unique_ptr<WaterRenderer> waterRenderer;
 };
 
-void InitWater(){
-    float waterHeight;
-    // WaterMesh waterMesh();
-
-}
 
 GridDemo* g_app = nullptr;
 

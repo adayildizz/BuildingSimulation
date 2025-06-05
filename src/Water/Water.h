@@ -7,26 +7,37 @@
 
 class Water {
 public:
+    float GRID_SIZE = 100;
     Water(Shader* program);
-    void initMesh(const std::vector<vec4>& positions, 
-                 const std::vector<vec2>& texCoords,
-                 const std::vector<GLuint>& indices);
-    void draw(Texture& reflectionTexture, Texture& refractionTexture) const;
+    void generateMesh();
+    void createWaterMeshVAO();
+    void createDummy();
+    GLuint createFBO(GLuint& texture, int width, int height);   
+    GLuint loadTexture(const std::string& texturePath);
+    void renderToFBO(GLuint fbo, int width, int height, GLuint shaderProgram, GLuint vao, int vertexCount); 
 
-private:
+
     Shader* waterProgram;
     
     // OpenGL buffers
-    GLuint VAO;
-    GLuint VBO; 
-    GLuint EBO;
-    GLuint NBO;
+    GLuint waterVAO, waterVBO[2], waterEBO;
 
-    // Water textures
-    std::shared_ptr<Texture> m_dudvMap;
-    std::shared_ptr<Texture> m_normalMap;
+    std::vector<vec4> meshVertices;
+    std::vector<GLuint> meshIndices;
+    std::vector<vec2> meshTexCoords;
+    // DUMMY
+    GLuint dummyTexture;
+    GLuint dummyFBO;
+    GLuint dummyVAO, dummyVBO;
+    static const int DUMMY_VERTICES_SIZE = 12; // 3 vertices * 4 floats per vertex
+    float dummyVertices[DUMMY_VERTICES_SIZE] = {
+        // Positions     // TexCoords
+        -1.0f, -1.0f,     0.0f, 0.0f,
+        3.0f, -1.0f,     2.0f, 0.0f,
+        -1.0f,  3.0f,     0.0f, 2.0f
+    };
 
-    // Store indices for drawing
-    std::vector<GLuint> m_indices;
+   
+    
 };
 
