@@ -176,14 +176,37 @@ public:
         if (water && dummyProgram) {
             dummyProgram->use();
             
+            // Calculate water position in front of camera
+            vec3 cameraPos = camera->GetPosition();
+            vec3 cameraTarget = camera->GetTarget();
+            vec3 cameraDir = normalize(cameraTarget - cameraPos);
+            
+            // Position water at a fixed position relative to camera
+            vec3 waterPos = vec3(625.0f, 100.0f, 625.0f);  // Fixed position near camera's initial position
+            
+            // Create transformation matrix with larger scale
+            mat4 waterModelMatrix = Translate(waterPos.x, waterPos.y, waterPos.z) * Scale(200.0f, 1.0f, 200.0f);  // Made even larger
+            
+            // Set uniforms
+            dummyProgram->setUniform("gModelMatrix", waterModelMatrix);
+            dummyProgram->setUniform("gVP", viewProjMatrix);
+            
             // Bind the dummy texture
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, water->dummyTexture);
+            dummyProgram->setUniform("dummyTexture", 0);  // Set texture unit
             
-            // Bind water VAO and render
-            glBindVertexArray(water->dummyVAO);
-            glDrawArrays(GL_TRIANGLES, 0, 3); // 3 vertices for the dummy quad
+            // Enable blending for water
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            
+            // Bind water mesh VAO and render
+            glBindVertexArray(water->waterVAO);
+            glDrawElements(GL_TRIANGLES, water->meshIndices.size(), GL_UNSIGNED_INT, 0);
             glBindVertexArray(0);
+            
+            // Disable blending
+            glDisable(GL_BLEND);
         }
     }
 
@@ -393,6 +416,7 @@ private:
         // Create dummy FBO and texture for water reflections
         water->createDummy();
         water->dummyFBO = water->createFBO(water->dummyTexture, WINDOW_WIDTH, WINDOW_HEIGHT);
+        water->renderToFBO(water->dummyFBO, WINDOW_WIDTH, WINDOW_HEIGHT, dummyProgram->getProgramID(), water->dummyVAO, 3);
         
     }
 
