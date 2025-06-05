@@ -26,6 +26,14 @@ public:
     // Implementation of the pure virtual method from BaseGrid
     virtual float GetHeight(int x, int z) const override;
 
+    // New methods for terrain modification
+    void SetHeight(int x, int z, float height);
+    void UpdateMesh();
+    void createLake(int centerX, int centerZ, float radius, float depth, float smoothness = 0.5f);
+    
+    // Get heights around the edge of a lake
+    std::vector<float> getLakeEdgeHeights(int centerX, int centerZ, float radius, int numSamples = 36);
+
     // Getters for terrain properties
     TerrainType GetTerrainType() const;
     const TerrainLayerInfo& GetLayerInfo() const;

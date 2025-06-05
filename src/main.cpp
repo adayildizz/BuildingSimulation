@@ -353,6 +353,14 @@ private:
         m_minTerrainHeight = grid->GetMinHeight();
         m_maxTerrainHeight = grid->GetMaxHeight();
 
+        // Create a lake in the terrain
+        int centerX = GRID_SIZE / 2;  // Center of the grid
+        int centerZ = GRID_SIZE / 2;
+        float lakeRadius = 20.0f;     // Size of the lake
+        float lakeDepth = 100.0f;      // How deep the lake is
+        float smoothness = 0.7f;      // How smooth the transition is (0.0 to 1.0)
+        grid->createLake(centerX, centerZ, lakeRadius, lakeDepth, smoothness);
+
         const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
             "resources/textures/grass.jpg",
