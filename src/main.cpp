@@ -38,6 +38,7 @@ bool isDigging = false;     // New state for digging
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
 float brushRadius = 15.0f;
 float brushStrength = 2.5f;
+std::vector<vec3> lastDugPoints; // Store the last dug points
 
 // Constants
 const int WINDOW_WIDTH = 1920;
@@ -375,8 +376,9 @@ public:
                         grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
                                     brushRadius, brushStrength);
                     } else if (isDigging) {
-                        grid->Dig(intersectionPoint.x, intersectionPoint.z, 
-                                brushRadius, brushStrength);
+                        lastDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
+                                                brushRadius, brushStrength);
+                        std::cout << "Dug " << lastDugPoints.size() << " points" << std::endl;
                     }
                 }
             } else if (state == GLFW_RELEASE) {

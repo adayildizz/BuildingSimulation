@@ -220,8 +220,11 @@ void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float b
     // Update the mesh to reflect changes
     UpdateMesh();
 }
-void TerrainGrid::Dig(float worldX, float worldZ, float brushRadius, float brushStrength)
+
+std::vector<vec3> TerrainGrid::Dig(float worldX, float worldZ, float brushRadius, float brushStrength)
 {
+    std::vector<vec3> dugPoints; // Vector to store points that were dug
+    
     // Convert world coordinates to grid coordinates
     int centerX = static_cast<int>(worldX / m_worldScale);
     int centerZ = static_cast<int>(worldZ / m_worldScale);
@@ -256,6 +259,10 @@ void TerrainGrid::Dig(float worldX, float worldZ, float brushRadius, float brush
             
             // Update height in heightmap
             m_heightMap[z * m_width + x] = newHeight;
+            
+            // Store the point that was dug (in world coordinates)
+            vec3 dugPoint(x * m_worldScale, newHeight, z * m_worldScale);
+            dugPoints.push_back(dugPoint);
         }
     }
     
@@ -264,7 +271,10 @@ void TerrainGrid::Dig(float worldX, float worldZ, float brushRadius, float brush
     
     // Update the mesh to reflect changes
     UpdateMesh();
+    
+    return dugPoints;
 }
+
 void TerrainGrid::ResetFlatteningState()
 {
     m_isFirstFlattenClick = true;
