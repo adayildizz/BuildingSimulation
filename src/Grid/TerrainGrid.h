@@ -38,6 +38,7 @@ public:
     // Texture painting methods
     void PaintTexture(float worldX, float worldZ, int textureLayer, float brushRadius, float brushStrength);
     void Flatten(float worldX, float worldZ, float brushRadius, float brushStrength); // New flatten function
+    void ResetFlatteningState(); // Reset the flattening state for new operations
     void UpdateMesh(); // Force mesh update after painting
     
 private:
@@ -47,6 +48,10 @@ private:
     TerrainLayerInfo m_layerInfo;
     float m_minHeight;
     float m_maxHeight;
+
+    // Flattening state
+    float m_flattenTargetHeight;
+    bool m_isFirstFlattenClick;
 
     void CalculateMinMaxHeights(); // Helper to calculate and store min/max
     void NormalizeSplatWeights(int x, int z); // Helper to normalize weights after painting

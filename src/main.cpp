@@ -347,43 +347,38 @@ public:
         }
     }
 
-    void MouseCB(int button, int action, int x, int y)
+    void MouseCB(int button, int state, int x, int y)
     {
+        // Get current window size
+        int currentWidth, currentHeight;
+        glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
+        
+        // Store raw coordinates but scale them to match camera's expected dimensions
+        mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
+        mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
+        
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
-            if (action == GLFW_PRESS) {
-                // Get current window size and scale coordinates
-                int currentWidth, currentHeight;
-                glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
-                
-                // Scale coordinates to match camera's expected dimensions
-                mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
-                mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
-                
-                camera->UpdateMousePos(x, y);
-                camera->StartRotation();
-                
-                // Handle texture painting or flattening
-                if (isTexturePainting || isFlattening) {
-                    vec3 intersectionPoint;
-                    if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                        if (isTexturePainting) {
-                            grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
-                                            currentTextureLayer, brushRadius, brushStrength);
-                        } else if (isFlattening) {
-                            grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
-                                        brushRadius, brushStrength);
-                        }
+            if (state == GLFW_PRESS) {
+                // Start painting or flattening
+                vec3 intersectionPoint;
+                if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                    if (isTexturePainting) {
+                        grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                        currentTextureLayer, brushRadius, brushStrength);
+                    } else if (isFlattening) {
+                        grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
+                                    brushRadius, brushStrength);
                     }
                 }
-                
-                // Only finalize object placement if there's an object in placement mode
-                if (gameObject && gameObject->isInPlacement) {
-                    gameObject->isInPlacement = false;
+            } else if (state == GLFW_RELEASE) {
+                // Reset flattening state when mouse button is released
+                if (isFlattening) {
+                    grid->ResetFlatteningState();
                 }
-            } else if (action == GLFW_RELEASE) {
-                camera->StopRotation();
             }
         }
+        
+        camera->OnMouse(x, y);
     }
 
     void ResizeCB(int width, int height)

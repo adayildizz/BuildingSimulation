@@ -8,7 +8,8 @@
 #include <random>     // Added for std::mt19937 and std::uniform_real_distribution
 #include <algorithm>  // Added for std::min/max
 
-TerrainGrid::TerrainGrid() : BaseGrid(), m_terrainType(TerrainType::FLAT), m_minHeight(0.0f), m_maxHeight(0.0f) 
+TerrainGrid::TerrainGrid() : BaseGrid(), m_terrainType(TerrainType::FLAT), m_minHeight(0.0f), m_maxHeight(0.0f),
+    m_flattenTargetHeight(0.0f), m_isFirstFlattenClick(true)
 {
     // m_layerInfo will be default constructed, then set in Init
 }
@@ -171,21 +172,19 @@ void TerrainGrid::PaintTexture(float worldX, float worldZ, int textureLayer, flo
 
 void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float brushStrength)
 {
-    std::cout << "Flatten called at world pos: (" << worldX << ", " << worldZ << ")" << std::endl;
-    
     // Convert world coordinates to grid coordinates
     int centerX = static_cast<int>(worldX / m_worldScale);
     int centerZ = static_cast<int>(worldZ / m_worldScale);
     
-    std::cout << "Grid coordinates: (" << centerX << ", " << centerZ << ")" << std::endl;
+    // On first click, store the target height
+    if (m_isFirstFlattenClick) {
+        m_flattenTargetHeight = GetHeight(centerX, centerZ);
+        m_isFirstFlattenClick = false;
+        std::cout << "Initial target height set to: " << m_flattenTargetHeight << std::endl;
+    }
     
     // Calculate brush radius in grid units
     int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
-    
-    // Get the height at the center point to flatten to
-    float centerHeight = GetHeight(centerX, centerZ);
-    float targetHeight = centerHeight - 5.0f; // Always flatten to exactly 5 units below clicked point
-    std::cout << "Target height: " << targetHeight << std::endl;
     
     // Iterate over the brush area
     for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
@@ -207,25 +206,24 @@ void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float b
             // Get current height
             float currentHeight = GetHeight(x, z);
             
-            // Calculate new height - only use falloff for blending, not for strength
-            float newHeight = std::max(0.0f, currentHeight + (targetHeight - currentHeight) * falloff);
+            // Calculate new height - interpolate between current height and initial target height
+            float newHeight = currentHeight + (m_flattenTargetHeight - currentHeight) * falloff * brushStrength;
             
             // Update height in heightmap
             m_heightMap[z * m_width + x] = newHeight;
-            
-            if (x == centerX && z == centerZ) {
-                std::cout << "Center point - Old height: " << currentHeight << ", New height: " << newHeight << std::endl;
-            }
         }
     }
-    
-    std::cout << "Flattening complete" << std::endl;
     
     // Update min/max heights
     CalculateMinMaxHeights();
     
     // Update the mesh to reflect changes
     UpdateMesh();
+}
+
+void TerrainGrid::ResetFlatteningState()
+{
+    m_isFirstFlattenClick = true;
 }
 
 void TerrainGrid::NormalizeSplatWeights(int x, int z)
