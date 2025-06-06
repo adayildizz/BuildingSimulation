@@ -220,7 +220,51 @@ void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float b
     // Update the mesh to reflect changes
     UpdateMesh();
 }
-
+void TerrainGrid::Dig(float worldX, float worldZ, float brushRadius, float brushStrength)
+{
+    // Convert world coordinates to grid coordinates
+    int centerX = static_cast<int>(worldX / m_worldScale);
+    int centerZ = static_cast<int>(worldZ / m_worldScale);
+    
+    // Calculate brush radius in grid units
+    int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
+    
+    // Iterate over the brush area
+    for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
+        for (int x = centerX - radiusInGrid; x <= centerX + radiusInGrid; x++) {
+            // Skip if outside grid bounds
+            if (x < 0 || x >= m_width || z < 0 || z >= m_depth) continue;
+            
+            // Calculate distance from brush center
+            float dx = (x - centerX) * m_worldScale;
+            float dz = (z - centerZ) * m_worldScale;
+            float distance = sqrt(dx * dx + dz * dz);
+            
+            // Skip if outside brush radius
+            if (distance > brushRadius) continue;
+            
+            // Calculate falloff based on distance - using quadratic falloff for bowl shape
+            float normalizedDistance = distance / brushRadius;
+            float falloff = (1.0f - normalizedDistance * normalizedDistance);
+            
+            // Get current height
+            float currentHeight = GetHeight(x, z);
+            
+            // Calculate new height - create bowl shape by lowering height more at center
+            float depth = brushStrength * falloff;
+            float newHeight = currentHeight - depth;
+            
+            // Update height in heightmap
+            m_heightMap[z * m_width + x] = newHeight;
+        }
+    }
+    
+    // Update min/max heights
+    CalculateMinMaxHeights();
+    
+    // Update the mesh to reflect changes
+    UpdateMesh();
+}
 void TerrainGrid::ResetFlatteningState()
 {
     m_isFirstFlattenClick = true;

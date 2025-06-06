@@ -34,6 +34,7 @@ float ObjectPosZ = 600.0f;
 // Texture painting state
 bool isTexturePainting = false;
 bool isFlattening = false;  // New state for flattening
+bool isDigging = false;     // New state for digging
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
 float brushRadius = 15.0f;
 float brushStrength = 2.5f;
@@ -306,7 +307,12 @@ public:
                 case GLFW_KEY_R:
                     gameObject->RotateY(5.0f);
                     break;
-                    
+                case GLFW_KEY_L:  // New key for digging mode
+                    isDigging = !isDigging;
+                    isTexturePainting = false;  // Disable other modes
+                    isFlattening = false;       // Disable other modes
+                    std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
+                    break;
             }
 
             //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
@@ -359,7 +365,7 @@ public:
         
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             if (state == GLFW_PRESS) {
-                // Start painting or flattening
+                // Start painting, flattening, or digging
                 vec3 intersectionPoint;
                 if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
                     if (isTexturePainting) {
@@ -368,6 +374,9 @@ public:
                     } else if (isFlattening) {
                         grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
                                     brushRadius, brushStrength);
+                    } else if (isDigging) {
+                        grid->Dig(intersectionPoint.x, intersectionPoint.z, 
+                                brushRadius, brushStrength);
                     }
                 }
             } else if (state == GLFW_RELEASE) {
