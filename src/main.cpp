@@ -466,6 +466,13 @@ public:
                     grid->ResetFlatteningState();
                 }
             }
+        } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+            // Handle camera rotation
+            if (state == GLFW_PRESS) {
+                camera->StartRotation();
+            } else if (state == GLFW_RELEASE) {
+                camera->StopRotation();
+            }
         }
         
         camera->OnMouse(x, y);
@@ -634,13 +641,13 @@ private:
         
         // Add three water instances at different locations
         // First water - near the center
-        waterManager->addWaterAt(vec3(625.0f, 100.0f, 625.0f), 200.0f);
+        //waterManager->addWaterAt(vec3(625.0f, 100.0f, 625.0f), 200.0f);
         
         // Second water - to the north
-        waterManager->addWaterAt(vec3(400.0f, 80.0f, 800.0f), 150.0f);
+        //waterManager->addWaterAt(vec3(400.0f, 80.0f, 800.0f), 150.0f);
         
         // Third water - to the south
-        waterManager->addWaterAt(vec3(800.0f, 120.0f, 400.0f), 180.0f);
+        //waterManager->addWaterAt(vec3(800.0f, 120.0f, 400.0f), 180.0f);
         
         glEnable(GL_DEPTH_TEST);
     }

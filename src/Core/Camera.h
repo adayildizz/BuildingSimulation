@@ -47,6 +47,7 @@ public:
     mat4 GetViewProjMatrix() const;
     mat4 GetViewPortMatrix() const;
     vec3 GetPosition() const;
+    void invertPitch();
 
     // Raycasting methods
     vec3 ScreenToWorldRay(float screenX, float screenY) const;
@@ -91,6 +92,9 @@ public:
         
         return false; // No intersection found
     }
+
+    // Camera control
+    void invertPitch() { m_angleV = -m_angleV; Update(); }
 
     void Print() const { std::cout << "Camera[pos = " << m_pos << ", target = " << m_target << ", up = " << m_up << "]" << std::endl; }
 

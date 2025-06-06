@@ -147,14 +147,3 @@ GLuint Water::createFBO(GLuint& texture, int width, int height)
     return fbo;
 }
 
-void Water::renderToFBO(GLuint fbo, int width, int height, GLuint shaderProgram, GLuint vao, int vertexCount) {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-    glViewport(0, 0, width, height);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glUseProgram(shaderProgram);
-    glBindVertexArray(vao);
-    glDrawArrays(GL_TRIANGLES, 0, vertexCount); // or however many vertices
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
