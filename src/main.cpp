@@ -36,9 +36,9 @@ bool isTexturePainting = false;
 bool isFlattening = false;  // New state for flattening
 bool isDigging = false;     // New state for digging
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
-float brushRadius = 15.0f;
-float brushStrength = 2.5f;
-std::vector<vec3> lastDugPoints; // Store the last dug points
+float brushRadius = 30.0f;  // Increased from 15.0f to make digging area larger
+float brushStrength = 5.0f; // Increased from 2.5f to make digging deeper
+std::vector<vec3> lastDugPoints; // Store all dug points during a digging session
 
 // Constants
 const int WINDOW_WIDTH = 1920;
@@ -310,6 +310,49 @@ public:
                     break;
                 case GLFW_KEY_L:  // New key for digging mode
                     isDigging = !isDigging;
+                    if (!isDigging) {  // If we're exiting digging mode
+                        if (!lastDugPoints.empty()) {
+                            // Calculate center and bounding box of dug points
+                            vec3 center(0.0f);
+                            vec3 minPoint(FLT_MAX);
+                            vec3 maxPoint(-FLT_MAX);
+                            
+                            std::cout << "Total dug points in session: " << lastDugPoints.size() << std::endl;
+                            
+                            for (const auto& point : lastDugPoints) {
+                                center += point;
+                                // Update bounding box
+                                minPoint.x = std::min(minPoint.x, point.x);
+                                minPoint.y = std::min(minPoint.y, point.y);
+                                minPoint.z = std::min(minPoint.z, point.z);
+                                maxPoint.x = std::max(maxPoint.x, point.x);
+                                maxPoint.y = std::max(maxPoint.y, point.y);
+                                maxPoint.z = std::max(maxPoint.z, point.z);
+                            }
+                            center /= static_cast<float>(lastDugPoints.size());
+                            
+                            // Calculate the size of the bounding box
+                            float width = maxPoint.x - minPoint.x;
+                            float depth = maxPoint.z - minPoint.z;
+                            float size = std::max(width, depth);
+                            
+                            std::cout << "Digging session bounds:" << std::endl;
+                            std::cout << "  Min point: (" << minPoint.x << ", " << minPoint.y << ", " << minPoint.z << ")" << std::endl;
+                            std::cout << "  Max point: (" << maxPoint.x << ", " << maxPoint.y << ", " << maxPoint.z << ")" << std::endl;
+                            std::cout << "  Center: (" << center.x << ", " << center.y << ", " << center.z << ")" << std::endl;
+                            std::cout << "  Size: " << size << std::endl;
+                            
+                            // Add water at the center with size based on the bounding box
+                            waterManager->addWaterAt(center, size * 1.2f); // Add 20% margin
+                            
+                            // Clear the dug points for next operation
+                            lastDugPoints.clear();
+                        }
+                    } else {
+                        // Clear points when entering digging mode
+                        lastDugPoints.clear();
+                    }
+
                     isTexturePainting = false;  // Disable other modes
                     isFlattening = false;       // Disable other modes
                     std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
@@ -376,9 +419,11 @@ public:
                         grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
                                     brushRadius, brushStrength);
                     } else if (isDigging) {
-                        lastDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
+                        std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
                                                 brushRadius, brushStrength);
-                        std::cout << "Dug " << lastDugPoints.size() << " points" << std::endl;
+                        // Append new points to the existing list
+                        lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
+                        std::cout << "Added " << newDugPoints.size() << " points. Total points: " << lastDugPoints.size() << std::endl;
                     }
                 }
             } else if (state == GLFW_RELEASE) {
