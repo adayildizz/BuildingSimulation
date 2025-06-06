@@ -342,8 +342,42 @@ public:
                             std::cout << "  Center: (" << center.x << ", " << center.y << ", " << center.z << ")" << std::endl;
                             std::cout << "  Size: " << size << std::endl;
                             
+                            // Create a small elevation around the dug area
+                            float waterMeshSize = size * 1.2f; // Size of water mesh (with 20% margin)
+                            float embankmentWidth = waterMeshSize * 0.15f; // 15% of water mesh size for embankment
+                            float waterHeight = center.y; // Use the center height as water surface height
+                            float embankmentHeight = 3.0f; // Height of the embankment above water
+                            
+                            // Create embankment by raising terrain in a ring around the dug area
+                            for (float angle = 0; angle < 360.0f; angle += 5.0f) { // 5-degree steps
+                                float rad = angle * M_PI / 180.0f;
+                                float outerRadius = (waterMeshSize * 0.5f) + embankmentWidth; // Outer edge of embankment
+                                float innerRadius = waterMeshSize * 0.5f; // Inner edge of embankment (water mesh edge)
+                                
+                                // Create points along the embankment ring
+                                for (float r = innerRadius; r <= outerRadius; r += 2.0f) {
+                                    float x = center.x + r * cos(rad);
+                                    float z = center.z + r * sin(rad);
+                                    
+                                    // Calculate falloff from inner to outer edge
+                                    float falloff = (r - innerRadius) / embankmentWidth;
+                                    float height = embankmentHeight * (1.0f - falloff);
+                                    
+                                    // Get current terrain height at this point
+                                    float currentHeight = grid->GetHeightAtWorldPos(x, z);
+                                    
+                                    // Only raise if current height is below water level
+                                    if (currentHeight < waterHeight) {
+                                        // Raise to at least water height plus embankment height
+                                        float targetHeight = waterHeight + height;
+                                        float raiseAmount = targetHeight - currentHeight;
+                                        grid->RaiseTerrain(x, z, raiseAmount, embankmentWidth * 0.5f, 1.0f);
+                                    }
+                                }
+                            }
+                            
                             // Add water at the center with size based on the bounding box
-                            waterManager->addWaterAt(center, size * 1.2f); // Add 20% margin
+                            waterManager->addWaterAt(center, waterMeshSize); // Use the same size we used for embankment
                             
                             // Clear the dug points for next operation
                             lastDugPoints.clear();

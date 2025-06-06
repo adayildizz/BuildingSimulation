@@ -39,6 +39,7 @@ public:
     void PaintTexture(float worldX, float worldZ, int textureLayer, float brushRadius, float brushStrength);
     void Flatten(float worldX, float worldZ, float brushRadius, float brushStrength); // New flatten function
     std::vector<vec3> Dig(float worldX, float worldZ, float brushRadius, float brushStrength); // Modified to return dug points
+    void RaiseTerrain(float worldX, float worldZ, float height, float brushRadius, float brushStrength); // New function to raise terrain
     void ResetFlatteningState(); // Reset the flattening state for new operations
     void UpdateMesh(); // Force mesh update after painting
     
