@@ -14,7 +14,7 @@ public:
     void addWaterAt(const vec3& position, float scale);
     void renderAll(const mat4& viewProjMatrix, const Camera* camera, Shader* worldShader,
                    std::function<void(vec4 clipPlane)> renderSceneFunc);
-
+    void CheckGLError(const std::string& location);
 private:
     struct WaterInstance {
         std::unique_ptr<Water> water;

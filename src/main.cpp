@@ -218,6 +218,8 @@ public:
                         objectLoader->render();
                     }
                 });
+
+                
         }
         
         // Use raycasting to position objects on terrain
@@ -628,6 +630,16 @@ private:
         }
     }
 
+    void CheckGLError(const std::string& location) {
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "OpenGL Error at " << location << ": " << std::hex << error << std::dec << std::endl;
+        // You can add more detailed error string mappings if you want, e.g.:
+        // if (error == GL_INVALID_ENUM) std::cerr << "GL_INVALID_ENUM" << std::endl;
+        // ... etc.
+    }
+}
+
     void InitWater() {
         // Initialize water program
         waterProgram = std::make_shared<Shader>();
@@ -641,13 +653,11 @@ private:
         
         // Add three water instances at different locations
         // First water - near the center
-        //waterManager->addWaterAt(vec3(625.0f, 100.0f, 625.0f), 200.0f);
-        
-        // Second water - to the north
-        //waterManager->addWaterAt(vec3(400.0f, 80.0f, 800.0f), 150.0f);
-        
-        // Third water - to the south
-        //waterManager->addWaterAt(vec3(800.0f, 120.0f, 400.0f), 180.0f);
+        waterManager->addWaterAt(vec3(400.0f, 100.0f, 800.0f), 150.0f);
+        CheckGLError("After first addWaterAt call in InitWater");
+
+        waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
+        CheckGLError("After second addWaterAt call in InitWater");
         
         glEnable(GL_DEPTH_TEST);
     }

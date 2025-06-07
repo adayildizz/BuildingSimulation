@@ -2,7 +2,7 @@
 
 layout(location = 0) out vec4 FragColor;
 
-in vec4 baseColor;
+in vec4 baseColor; // This 'in' is unused in main, but kept for compatibility with existing code
 in vec2 outTexCoord;      // Texture coordinates from vertex shader
 in vec3 outWorldPos;      // World position from vertex shader
 in vec3 outNormal_world;  // World-space normal from vertex shader
@@ -30,7 +30,7 @@ uniform float gHeight4; // New height threshold for snow
 struct DirectionalLight {
     vec3 color;
     float ambientIntensity;
-    vec3 direction;         // Direction *from which* light comes (WORLD SPACE)
+    vec3 direction;          // Direction *from which* light comes (WORLD SPACE)
     float diffuseIntensity;
 };
 uniform DirectionalLight directionalLight;
@@ -60,11 +60,11 @@ vec4 CalculateBlendedTextureColorFromWeights()
     
     // Blend using splat weights
     vec4 finalTexColor = tex0 * outSplatWeights1234.x +  // Sand
-                         tex1 * outSplatWeights1234.y +  // Grass
-                         tex2 * outSplatWeights1234.z +  // Dirt
-                         tex3 * outSplatWeights1234.w +  // Rock
-                         tex4 * outSplatWeight5;         // Snow
-                         
+                          tex1 * outSplatWeights1234.y +  // Grass
+                          tex2 * outSplatWeights1234.z +  // Dirt
+                          tex3 * outSplatWeights1234.w +  // Rock
+                          tex4 * outSplatWeight5;          // Snow
+                          
     return finalTexColor;
 }
 
@@ -116,7 +116,7 @@ void main()
 
     vec3 N_world = normalize(outNormal_world);
     vec3 L_world = normalize(directionalLight.direction); // Points from surface TO light
-    vec3 I_world = -L_world;                             // Incident light vector
+    vec3 I_world = -L_world;                            // Incident light vector
 
     // Ambient Lighting
     vec3 ambient_lighting_color = directionalLight.ambientIntensity * directionalLight.color;

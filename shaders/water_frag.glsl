@@ -3,9 +3,9 @@
 in vec2 fTexCoord;
 in vec4 clipSpace;
 
-uniform sampler2D reflectionTexMap;
-uniform sampler2D refractionTexMap;
 uniform sampler2D dudvMap;
+uniform sampler2D refractionTexMap;
+uniform sampler2D reflectionTexMap;
 
 uniform vec4 eyePosition;
 uniform float uTime;
@@ -39,5 +39,5 @@ void main() {
     float fresnelFactor = clamp(1.0 - dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
     fresnelFactor = pow(fresnelFactor, 3.0);
 
-    fragColor = mix(refractionColor, reflectionColor, fresnelFactor);
+    fragColor = refractionColor;
 }

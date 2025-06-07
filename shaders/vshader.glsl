@@ -6,26 +6,36 @@ layout (location = 2) in vec3 vNormal;     // Vertex normal (model space)
 layout (location = 3) in vec4 vSplatWeights1234; // First 4 splat weights (sand, grass, dirt, rock)
 layout (location = 4) in float vSplatWeight5;    // Fifth splat weight (snow)
 
-uniform mat4 gVP;          // Combined View * Projection matrix
-uniform mat4 gModelMatrix; // Model matrix (transforms model to world space)
+uniform mat4 gVP;           // Combined View * Projection matrix
+uniform mat4 gModelMatrix;  // Model matrix (transforms model to world space)
 
-out vec4 baseColor;
+// >>> ADDED: Clipping Plane Uniform <<<
+uniform vec4 clipPlane; 
+
+// >>> ADDED: Built-in output for clipping <<<
+out float gl_ClipDistance[1]; // Declare gl_ClipDistance for one clipping plane
+
+out vec4 baseColor; // This 'out' is unused in main, but kept for compatibility with existing code
 out vec2 outTexCoord;      // Pass texture coordinates to fragment shader
 out vec3 outWorldPos;      // Pass world position to fragment shader
 out vec3 outNormal_world;  // Pass normal (in world space) to fragment shader
 out vec4 outSplatWeights1234; // Pass first 4 splat weights to fragment shader
-out float outSplatWeight5;     // Pass fifth splat weight to fragment shader
+out float outSplatWeight5;    // Pass fifth splat weight to fragment shader
 
 void main()
 {
     // Transform vertex position to world space
-    vec4 worldPos_vec4 = gModelMatrix * vec4(vPosition);
+    vec4 worldPos_vec4 = gModelMatrix * vPosition; // Changed to use vPosition directly as a vec4
     outWorldPos = worldPos_vec4.xyz;
 
     // Transform vertex position to clip space
     gl_Position = gVP * worldPos_vec4;
     
-    // Transform normal to world space    
+    // >>> ADDED: Clipping Distance Calculation <<<
+    // Fragments for which gl_ClipDistance[0] is negative will be discarded.
+    gl_ClipDistance[0] = dot(outWorldPos, clipPlane.xyz) + clipPlane.w;
+    
+    // Transform normal to world space     
     outNormal_world = normalize(mat3(gModelMatrix) * vNormal);
     
     // Pass through texture coordinates and splat weights
@@ -33,6 +43,6 @@ void main()
     outSplatWeights1234 = vSplatWeights1234;
     outSplatWeight5 = vSplatWeight5;
     
-    // Set a default base color
+    // Set a default base color (passed to fragment shader, but your fragment shader doesn't use it as 'baseColor')
     baseColor = vec4(1.0, 1.0, 1.0, 1.0);
 }

@@ -17,7 +17,8 @@ public:
     GLuint createFBO(GLuint& texture, int width, int height);   
     GLuint loadTexture(const std::string& texturePath);
     void renderToFBO(GLuint fbo, int width, int height, GLuint shaderProgram, GLuint vao, int vertexCount); 
-    
+   
+    void CheckGLError(const std::string& location) ;
     Shader* waterProgram;
     
     // OpenGL buffers

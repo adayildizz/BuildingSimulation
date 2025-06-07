@@ -20,6 +20,6 @@ void main() {
 
     clipSpace = Projection * ModelView * displaced;
     gl_Position = clipSpace;
-    fTexCoord = vec2(vPosition.x / 2.0 + 0.5, vPosition.z / 2.0 + 0.5) * tiling;
+    fTexCoord = vTexCoord * tiling;
 }
 

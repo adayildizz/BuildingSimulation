@@ -55,6 +55,7 @@ void Water::createWaterMeshVAO() {
     glBufferData(GL_ARRAY_BUFFER, meshVertices.size() * sizeof(vec4), meshVertices.data(), GL_STATIC_DRAW);
 
     GLuint vPos = glGetAttribLocation(waterProgram->getProgramID(), "vPosition");
+    std::cout << "vPos: " << vPos << std::endl;
     glEnableVertexAttribArray(vPos);
     glVertexAttribPointer(vPos, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -64,6 +65,7 @@ void Water::createWaterMeshVAO() {
     glBufferData(GL_ARRAY_BUFFER, meshTexCoords.size() * sizeof(vec2), meshTexCoords.data(), GL_STATIC_DRAW);
 
     GLuint vTex = glGetAttribLocation(waterProgram->getProgramID(), "vTexCoord");
+    std::cout << "vTex: " << vTex << std::endl;
     glEnableVertexAttribArray(vTex);
     glVertexAttribPointer(vTex, 2, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -80,28 +82,24 @@ GLuint Water::loadTexture(const std::string& texturePath) {
 
     if (!image) {
         std::cerr << "ERROR: Could not load texture file '" << texturePath << "'" << std::endl;
-        // We generate a checkerboard pattern
-        const int texWidth = 2, texHeight = 2;
-        unsigned char checker[texWidth * texHeight * 3] = {
-            255, 255, 255,   0, 0, 0,
-            0, 0, 0,   255, 255, 255
-        };
-
+        // ... (checkerboard fallback)
         glGenTextures(1, &texture);
+        CheckGLError("loadTexture - glGenTextures (fallback)"); // Debug
         glBindTexture(GL_TEXTURE_2D, texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texWidth, texHeight, 0,
-            GL_RGB, GL_UNSIGNED_BYTE, checker);
-        glGenerateMipmap(GL_TEXTURE_2D);
+        CheckGLError("loadTexture - glBindTexture (fallback)"); // Debug
+        // ...
     }
     else {
-        std::cout << "Loaded texture: " << width << "x" << height
-            << ", channels: " << channels << std::endl;
+        std::cout << "Loaded texture: " << width << "x" << height << ", channels: " << channels << std::endl;
 
         glGenTextures(1, &texture);
+        CheckGLError("loadTexture - glGenTextures"); // Debug: MOST LIKELY PLACE FOR 502
         glBindTexture(GL_TEXTURE_2D, texture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
-            GL_RGB, GL_UNSIGNED_BYTE, image);
+        CheckGLError("loadTexture - glBindTexture"); // Debug
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+        CheckGLError("loadTexture - glTexImage2D"); // Debug
         glGenerateMipmap(GL_TEXTURE_2D);
+        CheckGLError("loadTexture - glGenerateMipmap"); // Debug
         stbi_image_free(image);
     }
 
@@ -109,41 +107,59 @@ GLuint Water::loadTexture(const std::string& texturePath) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    CheckGLError("loadTexture - glTexParameteri"); // Debug
 
     return texture;
-}
+    }
 
 
-GLuint Water::createFBO(GLuint& texture, int width, int height)
-{
+
+GLuint Water::createFBO(GLuint& texture, int width, int height) {
     GLuint fbo;
     GLuint drb;
 
-    //generating framebuffer
     glGenFramebuffers(1, &fbo);
+    CheckGLError("After glGenFramebuffers"); // Debug
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    CheckGLError("After glBindFramebuffer (FBO creation)"); // Debug
 
-
-    // we need to bind our texture 
     glGenTextures(1, &texture);
+    CheckGLError("After glGenTextures (FBO texture)"); // Debug
     glBindTexture(GL_TEXTURE_2D, texture);
+    CheckGLError("After glBindTexture (FBO texture)"); // Debug
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    CheckGLError("After glTexImage2D (FBO texture)"); // Debug
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+    CheckGLError("After glFramebufferTexture2D"); // Debug
 
-
-    // generating depth renderbuffer
     glGenRenderbuffers(1, &drb);
+    CheckGLError("After glGenRenderbuffers"); // Debug
     glBindRenderbuffer(GL_RENDERBUFFER, drb);
+    CheckGLError("After glBindRenderbuffer"); // Debug
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
+    CheckGLError("After glRenderbufferStorage"); // Debug
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, drb);
+    CheckGLError("After glFramebufferRenderbuffer"); // Debug
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         std::cerr << "ERROR: Framebuffer is not complete!" << std::endl;
     }
+    CheckGLError("After glCheckFramebufferStatus"); // Debug (though the cerr is already there)
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // unbind when done
+    CheckGLError("After glBindFramebuffer (unbinding FBO creation)"); // Debug
 
     return fbo;
 }
 
+// In main.cpp or a suitable utility header
+void Water::CheckGLError(const std::string& location) {
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "OpenGL Error at " << location << ": " << std::hex << error << std::dec << std::endl;
+        // You can add more detailed error string mappings if you want, e.g.:
+        // if (error == GL_INVALID_ENUM) std::cerr << "GL_INVALID_ENUM" << std::endl;
+        // ... etc.
+    }
+}
