@@ -2,54 +2,54 @@
 
 layout(location = 0) out vec4 FragColor;
 
-// Inputs from Vertex Shader
-in vec4 baseColor;          // Vertex color (if used)
-in vec2 outTexCoord;        // Texture coordinates
-in vec3 outWorldPos;        // World position
-in vec3 outNormal_world;    // World-space normal
+in vec4 baseColor;
+in vec2 outTexCoord;      // Texture coordinates from vertex shader
+in vec3 outWorldPos;      // World position from vertex shader
+in vec3 outNormal_world;  // World-space normal from vertex shader
 in vec4 outFragPosLightSpace; // Fragment position from light's perspective
 
-// Texture samplers
-uniform sampler2D gTextureHeight0; // Terrain texture layer 0
-uniform sampler2D gTextureHeight1; // Terrain texture layer 1
-uniform sampler2D gTextureHeight2; // Terrain texture layer 2
-uniform sampler2D gTextureHeight3; // Terrain texture layer 3
-uniform sampler2D objectTexture;   // Texture for objects
+// Texture samplers for terrain layers
+uniform sampler2D gTextureHeight0;
+uniform sampler2D gTextureHeight1;
+uniform sampler2D gTextureHeight2;
+uniform sampler2D gTextureHeight3;
+uniform sampler2D objectTexture;   // Separate texture sampler for objects
 uniform sampler2D shadowMap;       // Shadow map
 
-// Uniforms for terrain blending
+
+// Height thresholds for blending textures (for terrain)
 uniform float gHeight0;
 uniform float gHeight1;
 uniform float gHeight2;
 uniform float gHeight3;
 
-// Light structure
+// Light Structure
 struct DirectionalLight {
     vec3 color;
     float ambientIntensity;
-    vec3 direction;       // As per your file: Direction *from which* light comes (WORLD SPACE)
+    vec3 direction;         // Direction *from which* light comes (WORLD SPACE)
     float diffuseIntensity;
 };
 uniform DirectionalLight directionalLight;
 
-// Material properties
+// Material Properties
 struct Material {
     float specularIntensity;
     float shininess;
 };
 uniform Material material;
 
-// Global uniforms
-uniform vec3 gViewPosition_world; // Camera's world position
-uniform bool u_isTerrain;         // Flag to differentiate terrain and objects
-uniform float u_shadowBias;      // Base bias for shadow calculation (still useful as a minimum)
+uniform vec3 gViewPosition_world;  // Camera's world position
+uniform bool u_isTerrain;  // Uniform to differentiate between terrain and object
+uniform float u_shadowBias;      // Bias for shadow calculation
 
-// Function to calculate blended texture color for terrain
+// Function to calculate blended texture color based on height (for terrain)
 vec4 CalculateBlendedTextureColor()
 {
     vec4 finalTexColor;
     float currentHeight = outWorldPos.y;
 
+    // Ensure blend ranges are valid to prevent division by zero or negative values
     float range0 = gHeight1 - gHeight0;
     float range1 = gHeight2 - gHeight1;
     float range2 = gHeight3 - gHeight2;
@@ -77,42 +77,35 @@ vec4 CalculateBlendedTextureColor()
     return finalTexColor;
 }
 
-// Shadow Calculation Function
-// Takes the world-space normal and the NdotL (diffuse factor before max(...,0.0)) for slope calculation.
-// The NdotL passed here should be dot(N_world, LightToSurfaceDir_world) for the bias calculation.
-// However, our existing L_world in main is `normalize(directionalLight.direction)` which is "direction light comes from",
-// so for N.L in lighting, it effectively uses -L_world or adjusts interpretation.
-// For slope scale bias, we need dot(Normal, LightDirection).
-// Let's use the N_dot_L_lighting which is dot(N_world, L_world_for_lighting).
-float CalculateShadowFactor(vec3 N_world_param, vec3 L_world_for_lighting_param)
+// Shadow Calculation FunctionAdd commentMore actions
+float CalculateShadowFactor()
 {
+    // Perspective divide for outFragPosLightSpace
     vec3 projCoords = outFragPosLightSpace.xyz / outFragPosLightSpace.w;
+
+    // Transform to [0,1] range for texture coordinates
     projCoords = projCoords * 0.5 + 0.5;
 
-    if (projCoords.z > 1.0) { return 1.0; }
-    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) {
+    // Check if the fragment is outside the light's frustum's Z-depth range [0,1]
+    if (projCoords.z > 1.0) { // If beyond light's far plane, consider it lit
         return 1.0;
     }
+    // Check if the fragment is outside the light's frustum's XY-range [0,1]
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) {
+        return 1.0; // Not in shadow map's XY area (e.g. due to GL_CLAMP_TO_BORDER not working perfectly), assume lit
+    }
     
+    // Get current fragment's depth from light's perspective
     float currentDepth = projCoords.z;
-    float shadowMapDepth = texture(shadowMap, projCoords.xy).r;
-
-    // Calculate NdotL for slope bias
-    float NdotL = max(dot(N_world_param, L_world_for_lighting_param), 0.0);
-
-    // --- DEBUG STEP 3: Reduce the slope factor significantly ---
-    float slope_factor = 0.002; // << TRY A MUCH SMALLER VALUE (was 0.02)
-    float slope_dependent_bias = slope_factor * (1.0 - NdotL);
     
-    float dynamicBias = u_shadowBias + slope_dependent_bias;
+    // Sample shadow map
+    float shadowMapDepth = texture(shadowMap, projCoords.xy).r; // .r because depth map is single channel
+    
 
-    // --- DEBUG STEP 4 (Optional): Output NdotL or dynamicBias ---
-    // FragColor = vec4(NdotL, NdotL, NdotL, 1.0); return; // Visualize NdotL on terrain
-    // FragColor = vec4(dynamicBias * 10.0, dynamicBias * 10.0, 0.0, 1.0); return; // Visualize dynamicBias
-
-    float shadow = 1.0;
-    if (currentDepth > shadowMapDepth + dynamicBias) {
-        shadow = 0.0;
+    // Check if fragment is in shadow
+    float shadow = 1.0; // Assume lit
+    if (currentDepth > shadowMapDepth + u_shadowBias) {
+        shadow = 0.0; // In shadow
     }
     
     return shadow;
@@ -121,53 +114,42 @@ float CalculateShadowFactor(vec3 N_world_param, vec3 L_world_for_lighting_param)
 void main()
 {
     vec4 albedo;
+
     if (u_isTerrain) {
         albedo = CalculateBlendedTextureColor();
     } else {
+        // Object rendering: Use the dedicated object texture sampler
         albedo = texture(objectTexture, outTexCoord);
     }
-
-    if (albedo.a < 0.1) albedo.a = 1.0; // Ensure opacity for lighting
+    
+    if (albedo.a < 0.1) albedo.a = 1.0;
 
     vec3 N_world = normalize(outNormal_world);
-
-    // directionalLight.direction is the direction *FROM WHICH* the light comes.
-    // For lighting calculations (N.L), L should be the vector from surface point *TO* the light.
-    // So, L_for_lighting is -normalize(directionalLight.direction).
-    // However, your existing code uses L_world = normalize(directionalLight.direction) and comments it as "Points from surface TO light".
-    // Let's clarify and stick to one convention for L_world to be used in N.L and bias.
-    // If directionalLight.direction is *FROM* light source (incident vector):
-    // vec3 L_world_to_light = -normalize(directionalLight.direction); // Vector from surface point TO light source
-    // If directionalLight.direction is *TOWARDS* light source (as if from origin to light pos):
-    // vec3 L_world_to_light = normalize(directionalLight.direction); // Vector from surface point TO light source (assuming light is at infinity in this dir)
-
-    // Based on your struct comment "Direction *from which* light comes" for directionalLight.direction:
-    vec3 lightSourceDirection = normalize(directionalLight.direction); // This vector points FROM the light TO the surface (incident direction)
-    vec3 L_world_for_lighting = -lightSourceDirection;                 // Vector from surface point TO light source
+    vec3 L_world = normalize(directionalLight.direction); // Points from surface TO light
+    vec3 I_world = -L_world;                             // Incident light vector
 
     // Ambient Lighting
     vec3 ambient_lighting_color = directionalLight.ambientIntensity * directionalLight.color;
 
     // Diffuse Lighting
-    float N_dot_L_lighting = max(dot(N_world, L_world_for_lighting), 0.0);
-    vec3 diffuse_lighting_color = directionalLight.diffuseIntensity * N_dot_L_lighting * directionalLight.color;
+    float N_dot_L = max(dot(N_world, L_world), 0.0);
+    vec3 diffuse_lighting_color = directionalLight.diffuseIntensity * N_dot_L * directionalLight.color;
 
     // Specular Lighting
     vec3 specular_lighting_color = vec3(0.0);
-    if (N_dot_L_lighting > 0.0)
+    if (N_dot_L > 0.0) // Only if light hits the front face
     {
         vec3 V_world = normalize(gViewPosition_world - outWorldPos); // View vector
-        // R = reflect(-L, N) where -L is incident vector. Here, lightSourceDirection is incident.
-        vec3 R_world = reflect(lightSourceDirection, N_world); // Reflected light vector
+        vec3 R_world = reflect(I_world, N_world);                    // Reflected light vector
         float V_dot_R = max(dot(V_world, R_world), 0.0);
         float specFactor = pow(V_dot_R, material.shininess);
         specular_lighting_color = material.specularIntensity * specFactor * directionalLight.color;
     }
 
-    // Calculate shadow factor, passing necessary vectors for slope-scale bias
-    float shadowFactor = CalculateShadowFactor(N_world, L_world_for_lighting);
+    float shadowFactor = CalculateShadowFactor();
 
-    // Combine lighting components
+    // Combine lighting components, modulated by shadow factor
+    // Shadow affects diffuse and specular, but not typically ambient (or less so)
     vec3 finalColor = albedo.rgb * ambient_lighting_color +
                       shadowFactor * (albedo.rgb * diffuse_lighting_color + specular_lighting_color);
 
