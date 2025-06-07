@@ -93,8 +93,7 @@ public:
         return false; // No intersection found
     }
 
-    // Camera control
-    void invertPitch() { m_angleV = -m_angleV; Update(); }
+   
 
     void Print() const { std::cout << "Camera[pos = " << m_pos << ", target = " << m_target << ", up = " << m_up << "]" << std::endl; }
 
