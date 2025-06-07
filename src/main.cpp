@@ -188,16 +188,10 @@ public:
         // --- Render Water ---
         if (waterManager) {
             waterManager->renderAll(viewProjMatrix, camera.get(), shader.get(),
-                [this](vec4 clipPlane, bool isReflection, float waterHeight) {
+                [this](vec4 clipPlane, mat4 viewProjMatrix) {
                     shader->setUniform("clipPlane", clipPlane);
 
-                    if(isReflection){
-                        float distance = 2.0f * (camera->GetPosition().y - waterHeight);
-                        vec3 invertedCameraPos = vec3(camera->GetPosition().x, camera->GetPosition().y - distance, camera->GetPosition().z);
-                        camera->SetPosition(invertedCameraPos);
-                        camera->invertPitch();
-                    
-                    }
+                    shader->setUniform("gVP", viewProjMatrix);
                     // Render terrain
                     shader->setUniform("u_isTerrain", true);
                     shader->setUniform("gModelMatrix", mat4(1.0f));
@@ -660,10 +654,10 @@ private:
         
         // Add three water instances at different locations
         // First water - near the center
-        waterManager->addWaterAt(vec3(400.0f, 100.0f, 800.0f), 150.0f);
+        //waterManager->addWaterAt(vec3(400.0f, 100.0f, 800.0f), 150.0f);
         CheckGLError("After first addWaterAt call in InitWater");
 
-        waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
+        //waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
         CheckGLError("After second addWaterAt call in InitWater");
         
         glEnable(GL_DEPTH_TEST);

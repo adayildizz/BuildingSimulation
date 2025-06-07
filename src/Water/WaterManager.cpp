@@ -43,24 +43,36 @@ void WaterManager::CheckGLError(const std::string& location) {
     }
 }
 
-void WaterManager::renderAll(const mat4& viewProjMatrix, const Camera* camera, Shader* worldShader,
-                             std::function<void(vec4 clipPlane, bool isReflection, float waterHeight)> renderSceneFunc) {
+void WaterManager::renderAll(const mat4& viewProjMatrix, Camera* camera, Shader* worldShader,
+                             std::function<void(vec4 clipPlane, mat4 viewProjMatrix)> renderSceneFunc) {
     time += 0.016f;
 
     for (auto& instance : waters) {
         auto& water = instance.water;
-
+        
         // REFLECTION
         glBindFramebuffer(GL_FRAMEBUFFER, water->reflectionFBO);
         glViewport(0, 0, screenWidth, screenHeight);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        renderSceneFunc(vec4(0, 1, 0, -instance.position.y), true, instance.position.y);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+        // revert camera position
+        vec3 camPos = camera->GetPosition();
+        float distance = 2.0f * (camPos.y - instance.position.y);
+        vec3 reflectedPos = camPos;
+        reflectedPos.y -= distance;
+
+        vec3 lookDir = normalize(camera->GetTarget() - camPos);
+        lookDir.y = -lookDir.y;  // Reflect the look direction
+
+        Camera reflectedCamera(camera->GetPersProjInfo(), reflectedPos, lookDir, -camera->GetUp());
+        mat4 reflectedViewProj = camera->GetProjMatrix() * reflectedCamera.GetViewMatrix();
+        renderSceneFunc(vec4(0, 1, 0, -instance.position.y), reflectedViewProj);
+        //MODIFY ABOVE
 
         // REFRACTION
         glBindFramebuffer(GL_FRAMEBUFFER, water->refractionFBO);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        renderSceneFunc(vec4(0, -1, 0, instance.position.y), false, instance.position.y);
+        renderSceneFunc(vec4(0, -1, 0, instance.position.y), viewProjMatrix);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // RENDER WATER SURFACE
