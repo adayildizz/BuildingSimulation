@@ -188,9 +188,16 @@ public:
         // --- Render Water ---
         if (waterManager) {
             waterManager->renderAll(viewProjMatrix, camera.get(), shader.get(),
-                [this](vec4 clipPlane) {
+                [this](vec4 clipPlane, bool isReflection, float waterHeight) {
                     shader->setUniform("clipPlane", clipPlane);
+
+                    if(isReflection){
+                        float distance = 2.0f * (camera->GetPosition().y - waterHeight);
+                        vec3 invertedCameraPos = vec3(camera->GetPosition().x, camera->GetPosition().y - distance, camera->GetPosition().z);
+                        camera->SetPosition(invertedCameraPos);
+                        camera->invertPitch();
                     
+                    }
                     // Render terrain
                     shader->setUniform("u_isTerrain", true);
                     shader->setUniform("gModelMatrix", mat4(1.0f));

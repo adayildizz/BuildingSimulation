@@ -44,7 +44,7 @@ void WaterManager::CheckGLError(const std::string& location) {
 }
 
 void WaterManager::renderAll(const mat4& viewProjMatrix, const Camera* camera, Shader* worldShader,
-                             std::function<void(vec4 clipPlane)> renderSceneFunc) {
+                             std::function<void(vec4 clipPlane, bool isReflection, float waterHeight)> renderSceneFunc) {
     time += 0.016f;
 
     for (auto& instance : waters) {
@@ -54,13 +54,13 @@ void WaterManager::renderAll(const mat4& viewProjMatrix, const Camera* camera, S
         glBindFramebuffer(GL_FRAMEBUFFER, water->reflectionFBO);
         glViewport(0, 0, screenWidth, screenHeight);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        renderSceneFunc(vec4(0, 1, 0, -instance.position.y));
+        renderSceneFunc(vec4(0, 1, 0, -instance.position.y), true, instance.position.y);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // REFRACTION
         glBindFramebuffer(GL_FRAMEBUFFER, water->refractionFBO);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        renderSceneFunc(vec4(0, -1, 0, instance.position.y));
+        renderSceneFunc(vec4(0, -1, 0, instance.position.y), false, instance.position.y);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
         // RENDER WATER SURFACE

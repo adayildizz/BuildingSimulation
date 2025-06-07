@@ -39,5 +39,5 @@ void main() {
     float fresnelFactor = clamp(1.0 - dot(viewDir, vec3(0.0, 1.0, 0.0)), 0.0, 1.0);
     fresnelFactor = pow(fresnelFactor, 3.0);
 
-    fragColor = refractionColor;
+    fragColor = mix(reflectionColor, refractionColor, 0.5);
 }

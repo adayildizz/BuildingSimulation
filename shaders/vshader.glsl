@@ -9,11 +9,10 @@ layout (location = 4) in float vSplatWeight5;    // Fifth splat weight (snow)
 uniform mat4 gVP;           // Combined View * Projection matrix
 uniform mat4 gModelMatrix;  // Model matrix (transforms model to world space)
 
-// >>> ADDED: Clipping Plane Uniform <<<
+
 uniform vec4 clipPlane; 
 
-// >>> ADDED: Built-in output for clipping <<<
-out float gl_ClipDistance[1]; // Declare gl_ClipDistance for one clipping plane
+
 
 out vec4 baseColor; // This 'out' is unused in main, but kept for compatibility with existing code
 out vec2 outTexCoord;      // Pass texture coordinates to fragment shader
@@ -24,16 +23,15 @@ out float outSplatWeight5;    // Pass fifth splat weight to fragment shader
 
 void main()
 {
+    
     // Transform vertex position to world space
     vec4 worldPos_vec4 = gModelMatrix * vPosition; // Changed to use vPosition directly as a vec4
     outWorldPos = worldPos_vec4.xyz;
-
+    
     // Transform vertex position to clip space
     gl_Position = gVP * worldPos_vec4;
     
-    // >>> ADDED: Clipping Distance Calculation <<<
-    // Fragments for which gl_ClipDistance[0] is negative will be discarded.
-    gl_ClipDistance[0] = dot(outWorldPos, clipPlane.xyz) + clipPlane.w;
+    gl_ClipDistance[0] = dot(worldPos_vec4, clipPlane);
     
     // Transform normal to world space     
     outNormal_world = normalize(mat3(gModelMatrix) * vNormal);

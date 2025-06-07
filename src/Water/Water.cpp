@@ -124,6 +124,7 @@ GLuint Water::createFBO(GLuint& texture, int width, int height) {
     CheckGLError("After glBindFramebuffer (FBO creation)"); // Debug
 
     glGenTextures(1, &texture);
+    std::cout << "Created Texture ID for FBO: " << texture << std::endl; // Add this
     CheckGLError("After glGenTextures (FBO texture)"); // Debug
     glBindTexture(GL_TEXTURE_2D, texture);
     CheckGLError("After glBindTexture (FBO texture)"); // Debug
@@ -149,7 +150,7 @@ GLuint Water::createFBO(GLuint& texture, int width, int height) {
     CheckGLError("After glCheckFramebufferStatus"); // Debug (though the cerr is already there)
     glBindFramebuffer(GL_FRAMEBUFFER, 0); // unbind when done
     CheckGLError("After glBindFramebuffer (unbinding FBO creation)"); // Debug
-
+    std::cout << "Created FBO ID: " << fbo << std::endl;
     return fbo;
 }
 
