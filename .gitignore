@@ -33,7 +33,7 @@ Makefile
 *.lo
 *.o
 *.obj
-!Objects/*.obj
+!Objects/*/*.obj
 
 # Precompiled Headers
 *.gch
