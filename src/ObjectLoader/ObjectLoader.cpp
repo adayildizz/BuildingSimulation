@@ -1,11 +1,11 @@
 #include "ObjectLoader.h"
 #include "../../include/stb/stb_image.h"
 #include <iostream>
-#include <algorithm> 
-#include "../Core/Shader.h"// Required for std::find
+#include <algorithm>
+#include "../Core/Shader.h"
 
 // Constructor
-ObjectLoader::ObjectLoader(Shader& shaderProgram) : program(shaderProgram) {
+ObjectLoader::ObjectLoader(Shader& shaderProgram) {
     createDefaultWhiteTexture();
     boundingBoxCalculated = false;
     boundingBoxMin = vec3(0.0f);
@@ -44,10 +44,10 @@ void ObjectLoader::createDefaultWhiteTexture() {
 }
 
 bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned int>& specificMeshesToLoad) {
-    cleanup(); // Clean up any previously loaded model data
+    cleanup();
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(filename, 
-        aiProcess_Triangulate | aiProcess_GenNormals);
+    const aiScene* scene = importer.ReadFile(filename,
+        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs);
 
     if (!scene || !scene->HasMeshes()) {
         std::cerr << "Assimp load error for '" << filename << "': " << importer.GetErrorString() << std::endl;
@@ -55,52 +55,32 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
     }
 
     std::vector<unsigned int> meshesToLoadIndices = specificMeshesToLoad;
-    if (meshesToLoadIndices.empty()) { // If no specific meshes are requested, load all
+    if (meshesToLoadIndices.empty()) {
         for(unsigned int i = 0; i < scene->mNumMeshes; ++i) {
             meshesToLoadIndices.push_back(i);
         }
     }
 
     for (unsigned int targetMeshIdx : meshesToLoadIndices) {
-        if (targetMeshIdx >= scene->mNumMeshes) {
-            std::cout << "Skipping mesh index " << targetMeshIdx << " as it's out of bounds for '" << filename << "'." << std::endl;
-            continue;
-        }
+        if (targetMeshIdx >= scene->mNumMeshes) continue;
+        
         aiMesh* mesh = scene->mMeshes[targetMeshIdx];
-        std::cout << "Processing mesh " << targetMeshIdx << " with material index: " << mesh->mMaterialIndex << std::endl;
         std::vector<vec4> positions;
         std::vector<vec3> normals;
         std::vector<vec2> texCoords;
         std::vector<unsigned int> indices;
-        vec4 currentMeshMaterialColor(0.8f, 0.8f, 0.8f, 1.0f); // Default color
         GLuint currentMeshTextureID = defaultWhiteTextureID;
 
         if (scene->HasMaterials() && mesh->mMaterialIndex >= 0) {
             aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-            aiColor4D diffuseColorProperty;
-            if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColorProperty)) {
-                currentMeshMaterialColor = vec4(diffuseColorProperty.r, diffuseColorProperty.g, diffuseColorProperty.b, diffuseColorProperty.a);
-                if (currentMeshMaterialColor.w < 0.01f) currentMeshMaterialColor.w = 1.0f;
-            }
-
             aiString texturePath;
             if (material->GetTexture(aiTextureType_DIFFUSE, 0, &texturePath) == AI_SUCCESS) {
-                std::string texPathStr = texturePath.C_Str();
-                std::cout << "ObjectLoader: Original texture path from model: " << texPathStr << std::endl; // DEBUG
-
-                // Basic path handling: assume textures are relative to the model or in a known dir.
-                // You might need to adjust this path based on your project structure.
-                // For example, if model is in 'models/' and textures in 'models/textures/'
-                // std::string fullTexPath = parent_directory_of_model_file + "/" + texPathStr;
-                
-                // Check if texturePath is relative and prepend model's directory if needed
                 std::string modelDir = "";
                 size_t lastSlash = filename.find_last_of("/");
                 if (lastSlash != std::string::npos) {
                     modelDir = filename.substr(0, lastSlash + 1);
                 }
-                std::string fullTexPath = modelDir + texPathStr;
-                std::cout << "ObjectLoader: Attempting to load texture from: " << fullTexPath << std::endl; // DEBUG
+                std::string fullTexPath = modelDir + texturePath.C_Str();
 
                 int texWidth, texHeight, texChannels;
                 unsigned char *data = stbi_load(fullTexPath.c_str(), &texWidth, &texHeight, &texChannels, 0);
@@ -108,10 +88,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
                     GLuint textureID;
                     glGenTextures(1, &textureID);
                     glBindTexture(GL_TEXTURE_2D, textureID);
-                    GLenum format = GL_RGB;
-                    if (texChannels == 1) format = GL_RED;
-                    else if (texChannels == 3) format = GL_RGB;
-                    else if (texChannels == 4) format = GL_RGBA;
+                    GLenum format = (texChannels == 4) ? GL_RGBA : GL_RGB;
                     glTexImage2D(GL_TEXTURE_2D, 0, format, texWidth, texHeight, 0, format, GL_UNSIGNED_BYTE, data);
                     glGenerateMipmap(GL_TEXTURE_2D);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -130,31 +107,24 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
             aiVector3D p = mesh->mVertices[i];
             positions.push_back(vec4(p.x, p.y, p.z,1.0f));
-            aiVector3D n = mesh->HasNormals() ? mesh->mNormals[i] : aiVector3D(0, 1, 0); // Default normal if not present
+            aiVector3D n = mesh->HasNormals() ? mesh->mNormals[i] : aiVector3D(0, 1, 0);
             normals.push_back(vec3(n.x, n.y, n.z));
-            if (mesh->HasTextureCoords(0)) {
-                aiVector3D tc = mesh->mTextureCoords[0][i];
-                texCoords.push_back(vec2(tc.x, tc.y));
-            } else {
-                texCoords.push_back(vec2(0.0f, 0.0f));
-            }
+            texCoords.push_back(mesh->HasTextureCoords(0) ? vec2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y) : vec2(0.0f, 0.0f));
         }
 
         // Indices
         for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
-            aiFace face = mesh->mFaces[i];
-            for (unsigned int j = 0; j < face.mNumIndices; ++j)
-                indices.push_back(face.mIndices[j]);
+            for (unsigned int j = 0; j < mesh->mFaces[i].mNumIndices; ++j)
+                indices.push_back(mesh->mFaces[i].mIndices[j]);
         }
 
-        // Interleaved data
         std::vector<float> interleaved;
         for (size_t i = 0; i < positions.size(); ++i) {
             interleaved.insert(interleaved.end(), {
-                positions[i].x, positions[i].y, positions[i].z, positions[i].w,
+                positions[i].x, positions[i].y, positions[i].z, 1.0f,
                 texCoords[i].x, texCoords[i].y,
                 normals[i].x, normals[i].y, normals[i].z,
-                currentMeshMaterialColor.x, currentMeshMaterialColor.y, currentMeshMaterialColor.z, currentMeshMaterialColor.w // Using loaded/default material color
+                1.0f, 1.0f, 1.0f, 1.0f // Default white color
             });
         }
 
@@ -169,25 +139,19 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-        GLsizei stride = sizeof(float) * (4 + 2 + 3 + 4); // Pos(4) + TexCoord(2) + Normal(3) + Color(4) = 13 floats
+        GLsizei stride = sizeof(float) * (4 + 2 + 3 + 4);
 
-        // Use layout locations instead of glGetAttribLocation for better reliability
-        // Layout 0: vPosition (vec4) at offset 0
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, stride, (void*)0);
         
-        // Layout 1: vTexCoord (vec2) at offset 4 * sizeof(float)
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 4));
         
-        // Layout 2: vNormal (vec3) at offset 6 * sizeof(float)
         glEnableVertexAttribArray(2);
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 6));
         
-        // Layout 3: vColor (vec4) at offset 9 * sizeof(float)
         glEnableVertexAttribArray(3);
         glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, stride, (void*)(sizeof(float) * 9));
-        
 
         glBindVertexArray(0);
 
@@ -198,30 +162,24 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         meshTextureIDs.push_back(currentMeshTextureID);
     }
     
-    // Calculate bounding box from loaded meshes
     calculateBoundingBox(scene, meshesToLoadIndices);
-    
     return true;
 }
 
-void ObjectLoader::render() {
-    // Critical: Set u_isTerrain to false to use object texture instead of terrain blending
-    glUniform1i(glGetUniformLocation(program.getProgramID(), "u_isTerrain"), 0);
-
-    for (size_t i = 0; i < vaos.size(); ++i) {
-        // Use texture unit 4 to avoid conflicts with terrain textures (units 0-3)
-        glActiveTexture(GL_TEXTURE4);
-        glBindTexture(GL_TEXTURE_2D, meshTextureIDs[i]);
-        glUniform1i(glGetUniformLocation(program.getProgramID(), "objectTexture"), 4);
-
-        glBindVertexArray(vaos[i]);
-        glDrawElements(GL_TRIANGLES, indexCounts[i], GL_UNSIGNED_INT, 0);
+void ObjectLoader::render(Shader& program) {
+    GLint isTerrainLoc = glGetUniformLocation(program.getProgramID(), "u_isTerrain");
+    if (isTerrainLoc != -1) {
+        glUniform1i(isTerrainLoc, 0);
     }
-    glBindVertexArray(0);
-}
-void ObjectLoader::RenderMeshOnly() {
-    // This method just binds VAOs and draws, assumes shader and uniforms are set externally.
+    
     for (size_t i = 0; i < vaos.size(); ++i) {
+        GLint objectTexLoc = glGetUniformLocation(program.getProgramID(), "objectTexture");
+        if (objectTexLoc != -1) {
+            glActiveTexture(GL_TEXTURE4);
+            glBindTexture(GL_TEXTURE_2D, meshTextureIDs[i]);
+            glUniform1i(objectTexLoc, 4);
+        }
+
         glBindVertexArray(vaos[i]);
         glDrawElements(GL_TRIANGLES, indexCounts[i], GL_UNSIGNED_INT, 0);
     }
@@ -237,9 +195,7 @@ void ObjectLoader::calculateBoundingBox(const aiScene* scene, const std::vector<
     bool firstVertex = true;
     
     for (unsigned int targetMeshIdx : meshesToLoadIndices) {
-        if (targetMeshIdx >= scene->mNumMeshes) {
-            continue;
-        }
+        if (targetMeshIdx >= scene->mNumMeshes) continue;
         
         aiMesh* mesh = scene->mMeshes[targetMeshIdx];
         
@@ -252,22 +208,18 @@ void ObjectLoader::calculateBoundingBox(const aiScene* scene, const std::vector<
                 boundingBoxMax = v;
                 firstVertex = false;
             } else {
-                // Update min bounds
-                if (v.x < boundingBoxMin.x) boundingBoxMin.x = v.x;
-                if (v.y < boundingBoxMin.y) boundingBoxMin.y = v.y;
-                if (v.z < boundingBoxMin.z) boundingBoxMin.z = v.z;
+                boundingBoxMin.x = std::min(boundingBoxMin.x, v.x);
+                boundingBoxMin.y = std::min(boundingBoxMin.y, v.y);
+                boundingBoxMin.z = std::min(boundingBoxMin.z, v.z);
                 
-                // Update max bounds
-                if (v.x > boundingBoxMax.x) boundingBoxMax.x = v.x;
-                if (v.y > boundingBoxMax.y) boundingBoxMax.y = v.y;
-                if (v.z > boundingBoxMax.z) boundingBoxMax.z = v.z;
+                boundingBoxMax.x = std::max(boundingBoxMax.x, v.x);
+                boundingBoxMax.y = std::max(boundingBoxMax.y, v.y);
+                boundingBoxMax.z = std::max(boundingBoxMax.z, v.z);
             }
         }
     }
     
     boundingBoxCalculated = true;
-    
-    // Debug output
     vec3 size = GetBoundingBoxSize();
     std::cout << "Calculated bounding box: Min(" << boundingBoxMin.x << ", " << boundingBoxMin.y << ", " << boundingBoxMin.z << ") "
               << "Max(" << boundingBoxMax.x << ", " << boundingBoxMax.y << ", " << boundingBoxMax.z << ") "
@@ -276,7 +228,7 @@ void ObjectLoader::calculateBoundingBox(const aiScene* scene, const std::vector<
 
 vec3 ObjectLoader::GetBoundingBoxSize() const {
     if (!boundingBoxCalculated) {
-        return vec3(1.0f, 1.0f, 1.0f); // Default size if not calculated
+        return vec3(1.0f, 1.0f, 1.0f);
     }
     return boundingBoxMax - boundingBoxMin;
 }

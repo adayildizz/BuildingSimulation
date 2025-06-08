@@ -11,10 +11,10 @@
 #include "Angel.h"
 #include "Core/CelestialLightManager.h"
 #include "ObjectLoader/GameObjectManager.h"
+#include "Core/ShadowMap.h"
 
 #include <iostream>
 #include <memory>
-
 #include <vector>
 #include <string>
 #include <cstdlib>
@@ -33,6 +33,8 @@ float ObjectPosZ = 600.0f;
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
 const int GRID_SIZE = 250; // Size of the grid
+const unsigned int SHADOW_WIDTH = 4096, SHADOW_HEIGHT = 4096; // Shadow map resolution
+
 ObjectLoader* objectLoader;
 GameObject* gameObject; //SelectedGameObject
 
@@ -41,17 +43,12 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
 static void CursorPosCallback(GLFWwindow* window, double x, double y);
 static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int Mode);
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height);
+
 // Global Pointers
 std::unique_ptr<Material> m_terrainMaterial;
 std::shared_ptr<Shader> shader;
+std::shared_ptr<Shader> m_shadowShader; // Pointer for the shadow shader
 GameObjectManager* objectManager;
-
-//shadow properties
-GLuint m_shadowMapFBO;
-GLuint m_shadowMapTexture;
-const unsigned int SHADOW_WIDTH = 2048, SHADOW_HEIGHT = 2048; // Or other desired resolution
-std::shared_ptr<Shader> m_depthShader; // For the depth pass
-mat4 m_lightSpaceMatrix; // To store the light's combined view-projection matrix
 
 // Grid demo application
 class GridDemo
@@ -63,28 +60,26 @@ public:
             delete objectLoader;
             objectLoader = nullptr;
         }
-        
-        if (m_shadowMapFBO != 0) {
-            glDeleteFramebuffers(1, &m_shadowMapFBO);
-        }
-        if (m_shadowMapTexture != 0) {
-            glDeleteTextures(1, &m_shadowMapTexture);
-        }
     }
 
     void Init()
     {
-        
         CreateWindow();
         InitCallbacks();
         InitCamera();
         InitMaterial();
-        InitShader();
+        InitShader(); // This will now load both shaders
         InitGrid();
         InitObjects();
         InitLight();
-        InitShadows();
         m_celestialLightManager = std::make_unique<CelestialLightManager>(); // INITIALIZE LIGHT MANAGER
+        
+        // Initialize the Shadow Map
+        m_shadowMap = std::make_unique<ShadowMap>();
+        if (!m_shadowMap->Init(SHADOW_WIDTH, SHADOW_HEIGHT)) {
+            std::cerr << "Shadow Map initialization failed!" << std::endl;
+            // Handle error appropriately
+        }
     }
 
     void Run()
@@ -108,105 +103,95 @@ public:
         }
     }
 
+    // Method for the first rendering pass (depth pass)
+    void RenderSceneForShadowMap(const mat4& lightSpaceMatrix)
+    {
+        m_shadowShader->use();
+        m_shadowShader->setUniform("gLightSpaceMatrix", lightSpaceMatrix);
+        
+        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+        m_shadowMap->Write(); // Bind the shadow FBO
+        
+        glClear(GL_DEPTH_BUFFER_BIT);
+         
+        // --- Render Terrain for Shadow Map ---
+        mat4 terrainModelMatrix = mat4(1.0f);
+        m_shadowShader->setUniform("gModelMatrix", terrainModelMatrix);
+        grid->Render();
+
+        // --- Render Objects for Shadow Map ---
+        objectManager->RenderAll(*m_shadowShader); // We need to modify RenderAll to accept a shader
+    }
+
     void RenderScene()
     {
         // --- Calculate Light Space Matrix ---
-        vec3 lightDir = vec3(0.0f, -1.0f, 0.0f); // Default direction
-
+        mat4 lightSpaceMatrix;
         if (m_celestialLightManager) {
-            // CelestialLightManager's Update() should have been called in the main loop (GridDemo::Run)
-            // to update its internal time and properties.
-            // GetActiveLightDirection() will return the latest calculated direction.
-            vec3 activeDir = m_celestialLightManager->GetActiveLightDirection(); //
-            if (length(activeDir) > 0.001f) { // Ensure direction is not zero
-                lightDir = normalize(activeDir);
-            }
-            // Configure the main 'light' object. This updates its internal state.
-            // The light->UseLight() call later will use these updated values.
-            if(light) {
-                m_celestialLightManager->ConfigureLight(light.get()); //
-            }
+            vec3 lightDir = m_celestialLightManager->GetActiveLightDirection();
+            
+            // Create projection and view matrices from the light's perspective
+            float near_plane = 1.0f, far_plane = 2000.0f;
+            mat4 lightProjection = Ortho(-800.0f, 800.0f, -800.0f, 800.0f, near_plane, far_plane);
+            
+            // Position the light "behind" the scene center, looking at it
+            vec3 lightPos = vec3(625.0f, 500.0f, 625.0f) - lightDir * 600.0f;
+            mat4 lightView = LookAt(lightPos, vec3(625.0f, 0.0, 625.0f), vec3(0.0, 1.0, 0.0));
+            
+            lightSpaceMatrix = lightProjection * lightView;
         }
-        // If m_celestialLightManager is null, lightDir will remain the default,
-        // and the 'light' object will use its last configured or initial state.
+ 
+        // --- PASS 1 - Render scene to depth map ---
+        glCullFace(GL_FRONT); // Fix for peter-panning shadow artifact
+        RenderSceneForShadowMap(lightSpaceMatrix);
+        glCullFace(GL_BACK); // Reset culling
 
-        // Define the extents of the light's view volume for orthographic projection
-        float near_plane_light = 1.0f;
-        float far_plane_light = 2500.0f;
-        float orthoSize = 800.0f; // Adjust to fit your scene elements
-
-        mat4 lightProjection = Angel::Ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, near_plane_light, far_plane_light);
-
-        vec3 sceneFocusPoint = vec3((GRID_SIZE * grid->GetWorldScale()) / 2.0f, 0.0f, (GRID_SIZE * grid->GetWorldScale()) / 2.0f);
-        vec3 lightActualPos = sceneFocusPoint - lightDir * 1000.0f; // Position light source based on direction
-
-        mat4 lightView = Angel::LookAt(lightActualPos, sceneFocusPoint, vec3(0.0, 1.0, 0.0));
-        m_lightSpaceMatrix = lightProjection * lightView;
-
-
-        // ====== PASS 1: Render Scene to Depth Map (from light's perspective) ======
-        glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-        glBindFramebuffer(GL_FRAMEBUFFER, m_shadowMapFBO);
-        glClear(GL_DEPTH_BUFFER_BIT);
-
-        if (m_depthShader && m_depthShader->isValid()) {
-            m_depthShader->use();
-            m_depthShader->setUniform("lightSpaceMatrix", m_lightSpaceMatrix);
-
-            glCullFace(GL_FRONT); // Mitigate Peter Panning
-            if (objectManager) {
-                objectManager->RenderAllForDepthPass(*m_depthShader);
-            }
-            glCullFace(GL_BACK); // Reset culling
-        }
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-        // ====== PASS 2: Render Scene Normally (from camera's perspective) ======
-        int currentWindowWidth, currentWindowHeight;
-        glfwGetFramebufferSize(window->getHandle(), &currentWindowWidth, &currentWindowHeight);
-        glViewport(0, 0, currentWindowWidth, currentWindowHeight);
+        // --- PASS 2 - Render scene normally with shadows ---
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind back to default framebuffer
+        glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
         
+        // Get Sky Color and Clear Buffers
         vec3 currentSkyColor = vec3(0.0f);
         if (m_celestialLightManager) {
-            currentSkyColor = m_celestialLightManager->GetCurrentSkyColor(); //
-            // The light object is already configured above by m_celestialLightManager->ConfigureLight(light.get());
+            currentSkyColor = m_celestialLightManager->GetCurrentSkyColor();
+            if (light) {
+                m_celestialLightManager->ConfigureLight(light.get());
+            }
         }
-        
         glClearColor(currentSkyColor.x, currentSkyColor.y, currentSkyColor.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        if (!shader || !shader->isValid()) {
-            std::cerr << "Main shader is not valid!" << std::endl;
-            return;
-        }
+        // Use the unified shader for all rendering
         shader->use();
 
-        mat4 viewProjMatrix = camera->GetViewProjMatrix(); //
+        // Set Global Uniforms
+        mat4 viewProjMatrix = camera->GetViewProjMatrix();
         shader->setUniform("gVP", viewProjMatrix);
-        shader->setUniform("gViewPosition_world", camera->GetPosition()); //
-        shader->setUniform("lightSpaceMatrix", m_lightSpaceMatrix);
+        shader->setUniform("gViewPosition_world", camera->GetPosition());
+        shader->setUniform("gLightSpaceMatrix", lightSpaceMatrix); // Pass light matrix to main shader
 
-        glActiveTexture(GL_TEXTURE5);
-        glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
-        shader->setUniform("shadowMap", 5);
-        shader->setUniform("u_shadowBias", 0.005f);
-
-        if (light) {
+        // Bind shadow map texture to an available texture unit (e.g., 5)
+        m_shadowMap->Read(GL_TEXTURE5);
+        shader->setUniform("shadowMap", 5); // Tell shader which unit has the shadow map
+        
+        // Light Uniforms (The 'light' object is now configured by CelestialLightManager)
+        if (light && shader->isValid()) {
             GLuint shaderID = shader->getProgramID();
             GLint ambientIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.ambientIntensity");
             GLint ambientColorLoc     = glGetUniformLocation(shaderID, "directionalLight.color");
             GLint diffuseIntensityLoc = glGetUniformLocation(shaderID, "directionalLight.diffuseIntensity");
             GLint directionLoc        = glGetUniformLocation(shaderID, "directionalLight.direction");
-            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc); //
+            light->UseLight(ambientIntensityLoc, ambientColorLoc, diffuseIntensityLoc, directionLoc); // Use the configured light
         }
 
+        // --- Render Terrain ---
         shader->setUniform("u_isTerrain", true);
-        if (m_terrainMaterial) {
+
+        if (m_terrainMaterial && shader->isValid()) {
             GLuint shaderID = shader->getProgramID();
             GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
             GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
-            m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc); //
+            m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
         }
         shader->setUniform("gMinHeight", m_minTerrainHeight);
         shader->setUniform("gMaxHeight", m_maxTerrainHeight);
@@ -215,34 +200,30 @@ public:
 
         for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
             if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
-                GLenum texUnitEnum = GL_TEXTURE0 + static_cast<GLenum>(i);
-                m_terrainTextures[i]->Bind(texUnitEnum); //
+                m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
                 shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
                 shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
             }
         }
-        if (grid) {
-            grid->Render();
-        }
+        grid->Render();
 
+        // --- Render Objects ---
         shader->setUniform("u_isTerrain", false);
         
+        // Use raycasting to position objects on terrain
         if (gameObject && gameObject->isInPlacement) {
-            vec3 intersectionPointTerrain;
-            // The GetTerrainIntersection method is part of your Camera class's interface,
-            // its implementation might use ScreenToWorldRay and other logic.
-            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPointTerrain)) {
+            vec3 intersectionPoint;
+            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                // Center the object on the cursor by offsetting by half its width and depth
                 float halfWidth = gameObject->GetWidth() / 2.0f;
                 float halfDepth = gameObject->GetDepth() / 2.0f;
-                gameObject->SetPosition(vec4(intersectionPointTerrain.x - halfDepth,
-                                           intersectionPointTerrain.y,
-                                           intersectionPointTerrain.z - halfWidth, 1.0f));
+                gameObject->SetPosition(vec4(intersectionPoint.x - halfDepth,
+                                           intersectionPoint.y,
+                                           intersectionPoint.z - halfWidth, 1.0f));
             }
         }
         
-        if (objectManager) {
-            objectManager->RenderAll();
-        }
+        objectManager->RenderAll(*shader);
     }
 
     void KeyboardCB(int key, int action)
@@ -259,14 +240,13 @@ public:
                     break;
                 case GLFW_KEY_C:
                     camera->Print();
-                    break; 
+                    break;
                 case GLFW_KEY_N:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/Objects/Cat/cat.obj", {0});
+                    obj->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/Objects/Cat/cat.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
-                    //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
                     gameObject->Scale(0.7f);
                     gameObject->RotateX(-90.0f);
                     gameObject->isInPlacement = true; // Put new object in placement mode
@@ -275,25 +255,21 @@ public:
                 case GLFW_KEY_T:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/Objects/Tree/Tree1.obj", {0});
+                    obj->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/Objects/Tree/Tree1.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
-                    //gameObject->SetPosition(vec4(600.0f,150.0f,600.0f,1.0f));
                     gameObject->Scale(10.0f);
-
                     gameObject->isInPlacement = true; // Put new object in placement mode
-                    break; 
+                    break;
                 };
                 case GLFW_KEY_R:
                     gameObject->RotateY(5.0f);
                     break;
-            }   
-
-            //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
-        } 
+            }
+        }
         camera->OnKeyboard(key);
-    } 
- 
+    }
+
     void PassiveMouseCB(int x, int y)
     {
         mouseX = static_cast<double>(x);
@@ -316,12 +292,12 @@ public:
             }
         }
     }
-
+ 
     void ResizeCB(int width, int height)
     {
         glViewport(0, 0, width, height);
     }
-
+ 
 private:
     void CreateWindow()
     {
@@ -344,14 +320,12 @@ private:
     }
 
     void InitObjects(){
-
         std::cout << "loading objects.." << std::endl;
         objectManager = new GameObjectManager();
         objectLoader = new ObjectLoader(*shader);
-        objectLoader->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/Objects/Cottage/cottage_obj.obj", {4});
+        objectLoader->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/Objects/Cottage/cottage_obj.obj");
         int objectIndex = objectManager->CreateNewObject(*objectLoader);
         gameObject = objectManager->GetGameObject(objectIndex);
-        //gameObject->SetPosition(vec4(600.0f,0,600.0f,1.0f));
         gameObject->Scale(5.0f);
         gameObject->isInPlacement = true; // Initially placed
     }
@@ -377,7 +351,6 @@ private:
 
     void InitLight() // This method now just creates the Light object. Its properties are set by CelestialLightManager.
     {
-        // Initial values for the Light object. These will be quickly overwritten by CelestialLightManager.
         GLfloat initialColorRed = 1.0f;
         GLfloat initialColorGreen = 1.0f;
         GLfloat initialColorBlue = 1.0f;
@@ -391,55 +364,30 @@ private:
                                         initialDirectionX, initialDirectionY, initialDirectionZ, initialDiffuseIntensity);
         std::cout << "Directional Light object created." << std::endl;
     }
-    
-    void InitShadows()
-    {
-        // 1. Load the depth shader
-        auto& shaderManager = ShaderManager::getInstance();
-        m_depthShader = shaderManager.loadShader("depthShader",
-                                                 "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/depth_vshader.glsl",
-                                                 "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/depth_fshader.glsl");
-        if (!m_depthShader) {
-            std::cerr << "Failed to load depth shader!" << std::endl;
-            // Handle error
-        } 
-
-        // 2. Create the depth texture
-        glGenTextures(1, &m_shadowMapTexture);
-        glBindTexture(GL_TEXTURE_2D, m_shadowMapTexture);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); // Or GL_LINEAR for softer shadows with PCF
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST); // Or GL_LINEAR
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER); // Avoid sampling outside texture
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-        float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f }; // Areas outside shadow map are lit
-        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-
-        // 3. Create and configure the FBO
-        glGenFramebuffers(1, &m_shadowMapFBO);
-        glBindFramebuffer(GL_FRAMEBUFFER, m_shadowMapFBO);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_shadowMapTexture, 0);
-        glDrawBuffer(GL_NONE); // We don't need to draw color data
-        glReadBuffer(GL_NONE);
-
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-            std::cerr << "Framebuffer not complete!" << std::endl;
-            // Handle error
-        }
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); // Unbind
-    }
 
     void InitShader()
     {
         auto& shaderManager = ShaderManager::getInstance();
+        
+        // Load the main shader
         shader = shaderManager.loadShader("unifiedShader",
-                                          "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/vshader.glsl",
-                                          "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/shaders/fshader.glsl");
+                                          "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/shaders/vshader.glsl",
+                                          "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/shaders/fshader.glsl");
         if (!shader) {
             std::cerr << "Failed to load unified shader (shaders/vshader.glsl, shaders/fshader.glsl)" << std::endl;
             exit(-1);
         }
         std::cout << "Unified shader loaded successfully." << std::endl;
+
+        // Load the shadow shader
+        m_shadowShader = shaderManager.loadShader("shadowShader",
+                                                   "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/shaders/shadow_vshader.glsl",
+                                                   "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/shaders/shadow_fshader.glsl");
+        if (!m_shadowShader) {
+            std::cerr << "Failed to load shadow shader" << std::endl;
+            exit(-1);
+        }
+        std::cout << "Shadow shader loaded successfully." << std::endl;
     }
 
     void InitGrid()
@@ -460,10 +408,10 @@ private:
 
         const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/grass.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/dirt.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/rock.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo/TerrainDemo/resources/textures/snow.jpg"
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/resources/textures/grass.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/resources/textures/dirt.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/resources/textures/rock.jpg",
+            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/resources/textures/snow.jpg"
         };
 
         m_terrainTextures.clear();
@@ -505,7 +453,8 @@ private:
     std::unique_ptr<Camera> camera;
     std::unique_ptr<TerrainGrid> grid;
     std::unique_ptr<Light> light; // The actual light object used by shaders
-    std::unique_ptr<CelestialLightManager> m_celestialLightManager; // <<< ADD LIGHT MANAGER MEMBER
+    std::unique_ptr<CelestialLightManager> m_celestialLightManager;
+    std::unique_ptr<ShadowMap> m_shadowMap; // Shadow map member
     bool m_isWireframe = false;
     float m_minTerrainHeight = 0.0f;
     float m_maxTerrainHeight = 1.0f;
@@ -531,8 +480,6 @@ static void MouseButtonCallback(GLFWwindow* window, int Button, int Action, int 
 static void FramebufferSizeCallback(GLFWwindow* window, int width, int height) {
     if (g_app) g_app->ResizeCB(width, height);
 }
-
-
 
 int main(int argc, char** argv)
 {
