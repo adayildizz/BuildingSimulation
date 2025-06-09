@@ -47,6 +47,9 @@ public:
     void ResetFlatteningState(); // Reset the flattening state for new operations
     void UpdateMesh(); // Force mesh update after painting
     
+    // Sea bottom generation
+    void GenerateSeaBottom(int expandWidth, int expandDepth);
+
 private:
     // Heightmap data
     std::vector<float> m_heightMap;

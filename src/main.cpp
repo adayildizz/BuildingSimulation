@@ -406,6 +406,11 @@ public:
                     isFlattening = false;       // Disable other modes
                     std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
                     break;
+            
+                case 'H':
+                    // Generate sea bottom by expanding the grid
+                    grid->GenerateSeaBottom(50, 50); // Expand by 50 units in both width and depth
+                    break;
             }
 
             //std::cout << "X pos: " << objectPosX << "Y pos: " << ObjectPosY <<  "ObjectPos Z " << ObjectPosZ << std::endl;
@@ -582,7 +587,7 @@ private:
         float textureScale = 10.0f;
 
         grid = std::make_unique<TerrainGrid>();
-        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::VOLCANIC_CALDERA;
+        TerrainGrid::TerrainType terrainType = TerrainGrid::TerrainType::FAULT_FORMATION;
         float maxEdgeHeightForGenerator = 120.0f;
         float centralFlatRatioForGenerator = 0.25f;
 
@@ -660,10 +665,10 @@ private:
         
         // Add three water instances at different locations
         // First water - near the center
-        waterManager->addWaterAt(vec3(400.0f, 100.0f, 800.0f), 150.0f);
+        waterManager->addWaterAt(vec3(625.0f, 10.0f, 625.0f), 1600.0f);
         CheckGLError("After first addWaterAt call in InitWater");
 
-        waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
+        //waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
         CheckGLError("After second addWaterAt call in InitWater");
         
         glEnable(GL_DEPTH_TEST);

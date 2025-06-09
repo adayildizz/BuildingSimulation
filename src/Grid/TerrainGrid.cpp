@@ -382,3 +382,56 @@ void TerrainGrid::StoreInitHeightMap()
     // Store a copy of the current heightmap
     m_initHeightMap = m_heightMap;
 }
+
+void TerrainGrid::GenerateSeaBottom(int expandWidth, int expandDepth) {
+    // Store current dimensions
+    int oldWidth = m_width;
+    int oldDepth = m_depth;
+    
+    // Calculate new dimensions
+    int newWidth = m_width + expandWidth;
+    int newDepth = m_depth + expandDepth;
+    
+    // Create new heightmap with expanded size
+    std::vector<float> newHeightMap(newWidth * newDepth, 0.0f);
+    
+    // Copy existing heightmap data
+    for (int z = 0; z < oldDepth; z++) {
+        for (int x = 0; x < oldWidth; x++) {
+            newHeightMap[z * newWidth + x] = m_heightMap[z * oldWidth + x];
+        }
+    }
+    
+    // Update dimensions and heightmap
+    m_width = newWidth;
+    m_depth = newDepth;
+    m_heightMap = std::move(newHeightMap);
+    
+    // Update min/max heights
+    CalculateMinMaxHeights();
+    
+    // Create new mesh with expanded dimensions
+    delete m_gridMesh; // Delete old mesh
+    m_gridMesh = new GridMesh();
+    m_gridMesh->CreateMesh(m_width, m_depth, this);
+    
+    // Update vertex positions and texture weights for expanded area
+    auto& vertices = m_gridMesh->GetVertices();
+    for (int z = 0; z < m_depth; z++) {
+        for (int x = 0; x < m_width; x++) {
+            int index = z * m_width + x;
+            // Set position to zero height for expanded area and walls
+            if (x >= oldWidth || z >= oldDepth || x == 0 || x == m_width - 1 || z == 0 || z == m_depth - 1) {
+                vertices[index].position.y = 0.0f;
+                // Set all splat weights to 0
+                vertices[index].splatWeights.fill(0.0f);
+                // Set sand weight to 1.0
+                vertices[index].splatWeights[0] = 1.0f;
+            }
+        }
+    }
+    
+    // Recalculate normals and update GPU buffers
+    m_gridMesh->CalculateNormals(this, vertices);
+    m_gridMesh->UpdateVertexBuffer();
+}
