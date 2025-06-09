@@ -33,11 +33,11 @@ float ObjectPosZ = 600.0f;
 
 // Texture painting state
 bool isTexturePainting = false;
-bool isFlattening = false;  // New state for flattening
-bool isDigging = false;     // New state for digging
+bool isFlattening = false; 
+bool isDigging = false;     
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
-float brushRadius = 30.0f;  // Increased from 15.0f to make digging area larger
-float brushStrength = 5.0f; // Increased from 2.5f to make digging deeper
+float brushRadius = 30.0f;  // can be adjusted
+float brushStrength = 10.0f; // can be adjusted
 std::vector<vec3> lastDugPoints; // Store all dug points during a digging session
 
 // Constants
@@ -654,10 +654,10 @@ private:
         
         // Add three water instances at different locations
         // First water - near the center
-        //waterManager->addWaterAt(vec3(400.0f, 100.0f, 800.0f), 150.0f);
+        waterManager->addWaterAt(vec3(400.0f, 100.0f, 800.0f), 150.0f);
         CheckGLError("After first addWaterAt call in InitWater");
 
-        //waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
+        waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
         CheckGLError("After second addWaterAt call in InitWater");
         
         glEnable(GL_DEPTH_TEST);

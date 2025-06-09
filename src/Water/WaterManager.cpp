@@ -66,7 +66,7 @@ void WaterManager::renderAll(const mat4& viewProjMatrix, Camera* camera, Shader*
 
         Camera reflectedCamera(camera->GetPersProjInfo(), reflectedPos, lookDir, -camera->GetUp());
         mat4 reflectedViewProj = camera->GetProjMatrix() * reflectedCamera.GetViewMatrix();
-        renderSceneFunc(vec4(0, 1, 0, -instance.position.y), reflectedViewProj);
+        renderSceneFunc(vec4(0, 1, 0, -instance.position.y), viewProjMatrix);
         //MODIFY ABOVE
 
         // REFRACTION

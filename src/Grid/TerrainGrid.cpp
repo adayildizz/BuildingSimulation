@@ -223,7 +223,7 @@ void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float b
 
 std::vector<vec3> TerrainGrid::Dig(float worldX, float worldZ, float brushRadius, float brushStrength)
 {
-    std::vector<vec3> dugPoints; // Vector to store points that were dug
+    std::vector<vec3> dugPoints; 
     
     // Convert world coordinates to grid coordinates
     int centerX = static_cast<int>(worldX / m_worldScale);
