@@ -477,3 +477,5 @@ void TerrainGrid::CreateShore(int shoreWidth) {
     // Recalculate min/max heights
     CalculateMinMaxHeights();
 }
+
+void CreateLake(vec3 lakePos, float lakeDepth) {}

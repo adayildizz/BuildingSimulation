@@ -331,10 +331,6 @@ public:
                     std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
                     break;
             
-                case 'H':
-                    // Generate sea bottom by expanding the grid
-                    grid->GenerateSeaBottom(200, 200); // Expand by 50 units in both width and depth
-                    break;
                 
                 
                 
@@ -566,6 +562,7 @@ private:
                 std::cerr << "Failed to load terrain texture: " << texturePaths[i] << std::endl;
             }
         }
+       
 
         if (m_terrainTextures.empty()) {
             std::cerr << "CRITICAL: No terrain textures were loaded!" << std::endl;
@@ -583,6 +580,7 @@ private:
 }
 
     void InitWater() {
+       
         // Initialize water program
         waterProgram = std::make_shared<Shader>();
         if (!waterProgram->loadFromFiles("shaders/water_vert.glsl", "shaders/water_frag.glsl")) {
@@ -598,8 +596,11 @@ private:
         waterManager->addWaterAt(vec3(1625.0f, grid->GetMinHeight() - 5.0f, 1625.0f),3500.0f, 3500.0f);
         CheckGLError("After first addWaterAt call in InitWater");
 
-        //waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
-        CheckGLError("After second addWaterAt call in InitWater");
+        // Generate sea bottom by expanding the grid with 0 height
+        grid->GenerateSeaBottom(200, 200); 
+
+
+
         
         glEnable(GL_DEPTH_TEST);
     }
