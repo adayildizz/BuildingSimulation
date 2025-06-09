@@ -25,9 +25,6 @@ public:
 
     // Method to directly configure an existing Light object
     void ConfigureLight(Light* lightObject) const;
-    
-    // A function that tells if the sun is at the top.
-    bool IsSunAtZenith() const;
 
 private:
     // Time of day and cycle speed

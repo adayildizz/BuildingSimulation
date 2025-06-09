@@ -183,15 +183,8 @@ public:
  
         // Use the unified shader for all rendering
         shader->use();
-          
-        if (m_celestialLightManager) {
-            // Check if the sun is at its peak.
-            bool isSunAtZenith = m_celestialLightManager->IsSunAtZenith();
-            // Enable shadows unless the sun is at its zenith.
-            
- 
-            shader->setUniform("u_shadowsEnabled", !isSunAtZenith);
-        }
+        shader->setUniform("u_shadowsEnabled", true);
+
 
         // Set Global Uniforms
         mat4 viewProjMatrix = camera->GetViewProjMatrix();
