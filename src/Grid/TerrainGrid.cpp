@@ -170,21 +170,20 @@ void TerrainGrid::PaintTexture(float worldX, float worldZ, int textureLayer, flo
     UpdateMesh();
 }
 
-void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float brushStrength)
+std::vector<std::pair<int, int>> TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float brushStrength)
 {
+    // Clear previous flattened points
+    m_lastFlattenedPoints.clear();
+    
     // Convert world coordinates to grid coordinates
     int centerX = static_cast<int>(worldX / m_worldScale);
     int centerZ = static_cast<int>(worldZ / m_worldScale);
     
-    // On first click, store the target height
-    if (m_isFirstFlattenClick) {
-        m_flattenTargetHeight = GetHeight(centerX, centerZ);
-        m_isFirstFlattenClick = false;
-        std::cout << "Initial target height set to: " << m_flattenTargetHeight << std::endl;
-    }
-    
     // Calculate brush radius in grid units
     int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
+    
+    // Get the target height from the clicked point
+    float targetHeight = GetHeight(centerX, centerZ);
     
     // Iterate over the brush area
     for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
@@ -206,19 +205,21 @@ void TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float b
             // Get current height
             float currentHeight = GetHeight(x, z);
             
-            // Calculate new height - interpolate between current height and initial target height
-            float newHeight = currentHeight + (m_flattenTargetHeight - currentHeight) * falloff * brushStrength;
+            // Calculate new height - interpolate between current height and target height based on falloff
+            float newHeight = currentHeight + (targetHeight - currentHeight) * falloff;
             
             // Update height in heightmap
             m_heightMap[z * m_width + x] = newHeight;
+            
+            // Add to altered points
+            m_lastFlattenedPoints.push_back({x, z});
         }
     }
     
-    // Update min/max heights
     CalculateMinMaxHeights();
-    
-    // Update the mesh to reflect changes
     UpdateMesh();
+    
+    return m_lastFlattenedPoints;
 }
 
 std::vector<vec3> TerrainGrid::Dig(float worldX, float worldZ, float brushRadius, float brushStrength)

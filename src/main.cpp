@@ -423,8 +423,14 @@ public:
                                     currentTextureLayer, brushRadius, brushStrength);
                 } else if (isFlattening) {
                     std::cout << "Calling Flatten at intersection point: (" << intersectionPoint.x << ", " << intersectionPoint.z << ")" << std::endl;
-                    grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
+                    auto flattenedPoints = grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
                                 brushRadius, brushStrength);
+                    
+                    // Print the coordinates of flattened points
+                    std::cout << "Flattened " << flattenedPoints.size() << " points:" << std::endl;
+                    for (const auto& point : flattenedPoints) {
+                        std::cout << "  Grid coordinates: (" << point.first << ", " << point.second << ")" << std::endl;
+                    }
                 }
             } else {
                 std::cout << "No terrain intersection found" << std::endl;
