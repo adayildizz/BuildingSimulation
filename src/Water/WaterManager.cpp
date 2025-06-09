@@ -57,6 +57,7 @@ void WaterManager::renderAll(const mat4& viewProjMatrix, Camera* camera, Shader*
 
         // revert camera position
         vec3 camPos = camera->GetPosition();
+        
         float distance = 2.0f * (camPos.y - instance.position.y);
         vec3 reflectedPos = camPos;
         reflectedPos.y -= distance;

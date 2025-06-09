@@ -392,7 +392,7 @@ void TerrainGrid::GenerateSeaBottom(int expandWidth, int expandDepth) {
     int newDepth = m_depth + 2 * expandDepth;
 
     // Sea bottom height
-    float seaBottomHeight = 0.0f;
+    float seaBottomHeight = m_minHeight - 10.0f;
 
     // Create new heightmap initialized to sea bottom
     std::vector<float> newHeightMap(newWidth * newDepth, seaBottomHeight);
