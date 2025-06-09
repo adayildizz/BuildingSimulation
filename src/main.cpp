@@ -333,7 +333,7 @@ public:
             
                 case 'H':
                     // Generate sea bottom by expanding the grid
-                    grid->GenerateSeaBottom(0, 200); // Expand by 50 units in both width and depth
+                    grid->GenerateSeaBottom(200, 200); // Expand by 50 units in both width and depth
                     break;
                 
                 
@@ -464,7 +464,7 @@ private:
 
     void InitCamera()
     {
-        vec3 cameraPos = vec3(625.0f, 150.0f, 625.0f);
+        vec3 cameraPos = vec3(1625.0f, 150.0f, 1625.0f);
         vec3 cameraTarget = vec3(0.0f, -0.3f, 1.0f);
         vec3 cameraUp = vec3(0.0f, 1.0f, 0.0f);
         float fov = 45.0f;
@@ -595,7 +595,7 @@ private:
         
         // Add three water instances at different locations
         // First water - near the center
-        waterManager->addWaterAt(vec3(625.0f, grid->GetMinHeight() - 5.0f, 625.0f),1250.0f, 3500.0f);
+        waterManager->addWaterAt(vec3(1625.0f, grid->GetMinHeight() - 5.0f, 1625.0f),3500.0f, 3500.0f);
         CheckGLError("After first addWaterAt call in InitWater");
 
         //waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance

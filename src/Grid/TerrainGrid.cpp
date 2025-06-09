@@ -382,81 +382,61 @@ void TerrainGrid::StoreInitHeightMap()
     // Store a copy of the current heightmap
     m_initHeightMap = m_heightMap;
 }
-
 void TerrainGrid::GenerateSeaBottom(int expandWidth, int expandDepth) {
-    // Store current dimensions
+    // Store old dimensions
     int oldWidth = m_width;
     int oldDepth = m_depth;
-    
-    // Calculate new dimensions
-    int newWidth = m_width + expandWidth;
-    int newDepth = m_depth + expandDepth;
-    
-    // Create new heightmap with expanded size
-    std::vector<float> newHeightMap(newWidth * newDepth, 0.0f);
-    
-    // Copy existing heightmap data
-    for (int z = 0; z < oldDepth; z++) {
-        for (int x = 0; x < oldWidth; x++) {
-            newHeightMap[z * newWidth + x] = m_heightMap[z * oldWidth + x];
+
+    // Compute new dimensions (expanding in all four directions)
+    int newWidth = m_width + 2 * expandWidth;
+    int newDepth = m_depth + 2 * expandDepth;
+
+    // Sea bottom height
+    float seaBottomHeight = 0.0f;
+
+    // Create new heightmap initialized to sea bottom
+    std::vector<float> newHeightMap(newWidth * newDepth, seaBottomHeight);
+
+    // Copy original heightmap to center of the new grid
+    for (int z = 0; z < oldDepth; ++z) {
+        for (int x = 0; x < oldWidth; ++x) {
+            int oldIndex = z * oldWidth + x;
+            int newIndex = (z + expandDepth) * newWidth + (x + expandWidth);
+            newHeightMap[newIndex] = m_heightMap[oldIndex];
         }
     }
-    
-    // Update dimensions and heightmap
+
+    // Update internal state
     m_width = newWidth;
     m_depth = newDepth;
     m_heightMap = std::move(newHeightMap);
-    
-    // Update min/max heights
+
+    // Recalculate min/max height
     CalculateMinMaxHeights();
-    
-    // Create new mesh with expanded dimensions
-    delete m_gridMesh; // Delete old mesh
+
+    // Rebuild the mesh
+    if (m_gridMesh) delete m_gridMesh;
     m_gridMesh = new GridMesh();
     m_gridMesh->CreateMesh(m_width, m_depth, this);
-    
-    // Update vertex positions and texture weights for expanded area
+
+    // Update vertex attributes for new grid
     auto& vertices = m_gridMesh->GetVertices();
-    
-    // First pass: Set expanded area to zero height with sand texture
-    for (int z = 0; z < m_depth; z++) {
-        for (int x = 0; x < m_width; x++) {
+
+    for (int z = 0; z < m_depth; ++z) {
+        for (int x = 0; x < m_width; ++x) {
             int index = z * m_width + x;
-            if (x >= oldWidth || z >= oldDepth) {
-                vertices[index].position.y = -10.0f;
+            bool isExpandedArea = (x < expandWidth || x >= (m_width - expandWidth) ||
+                                   z < expandDepth || z >= (m_depth - expandDepth));
+
+            if (isExpandedArea) {
+                vertices[index].position.y = seaBottomHeight;
                 vertices[index].splatWeights.fill(0.0f);
                 vertices[index].splatWeights[0] = 1.0f; // Sand texture
             }
         }
     }
-    
-    // Second pass: Create vertical walls at the edges
-    for (int z = 0; z < m_depth; z++) {
-        for (int x = 0; x < m_width; x++) {
-            int index = z * m_width + x;
-            // Check if this is an edge vertex
-            if (x == 0 || x == m_width - 1 || z == 0 || z == m_depth - 1) {
-                // Get the height of the adjacent non-edge vertex
-                float adjacentHeight = -5.0f;
-                if (x > 0 && x < m_width - 1 && z > 0 && z < m_depth - 1) {
-                    // Use the height of the vertex one step inward
-                    int innerX = (x == 0) ? 1 : (x == m_width - 1) ? m_width - 2 : x;
-                    int innerZ = (z == 0) ? 1 : (z == m_depth - 1) ? m_depth - 2 : z;
-                    adjacentHeight = vertices[innerZ * m_width + innerX].position.y;
-                }
-                
-                // Set wall height to match adjacent terrain
-                vertices[index].position.y = adjacentHeight;
-                vertices[index].splatWeights.fill(0.0f);
-                vertices[index].splatWeights[0] = 1.0f; // Sand texture
-            }
-        }
-    }
-    
-    // Recalculate normals and update GPU buffers
-    m_gridMesh->CalculateNormals(this, vertices);
-    m_gridMesh->UpdateVertexBuffer();
 }
+
 
 void TerrainGrid::CreateShore(int shoreWidth) {
     // Start from the far end (Z=250) and work backwards
