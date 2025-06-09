@@ -335,12 +335,6 @@ private:
         glfwSetCursorPos(window->getHandle(), WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2);
     }
 
-    void PlaceObject() {
-        // Simple object placement - you can modify this to place objects at specific locations
-        // For now, just print a message indicating object placement was attempted
-        
-    }
-
     void InitObjects(){
         std::cout << "loading objects.." << std::endl;
         objectManager = new GameObjectManager();

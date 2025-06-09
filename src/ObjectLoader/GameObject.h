@@ -3,7 +3,7 @@
 
 #include "Angel.h"
 #include "ObjectLoader.h"
-#include "Shader.h" // Include Shader for Render signature
+#include "../Core/Shader.h" // Include Shader for Render signature
 
 class GameObject{
 public:

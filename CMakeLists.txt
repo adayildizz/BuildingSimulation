@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find required packages
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
+find_package(SFML 3 REQUIRED COMPONENTS Audio)
 
 # Add source files
 set(SOURCES
@@ -21,6 +22,8 @@ set(SOURCES
     src/Core/CelestialLightManager.cpp
     src/Core/light.cpp
     src/Core/Material.cpp
+    src/Core/AudioManager.cpp
+    src/Core/ShadowMap.cpp
     src/Grid/BaseGrid.cpp
     src/Grid/TerrainGrid.cpp
     src/Grid/GridMesh.cpp
@@ -30,8 +33,9 @@ set(SOURCES
     src/ObjectLoader/GameObjectManager.cpp
 )
 
-set(ASSIMP_SRC_DIR ${CMAKE_SOURCE_DIR}/include/assimp)
-set(ASSIMP_BUILD_DIR ${ASSIMP_SRC_DIR}/build)
+# Add Assimp as subdirectory (no install)
+set(ASSIMP_SRC_DIR "$ENV{HOME}/Desktop/assimp")
+set(ASSIMP_BUILD_DIR "$ENV{HOME}/Desktop/assimp/build")
 
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
@@ -40,26 +44,26 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${OPENGL_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/include
-    ${ASSIMP_SRC_DIR}/include      # Assimp's source include directory
-    ${ASSIMP_BUILD_DIR}/include   # Assimp's build include directory (for generated headers like config.h)
     ${CMAKE_SOURCE_DIR}/src
+    ${ASSIMP_SRC_DIR}/include             # Assimp source headers
+    ${ASSIMP_BUILD_DIR}/include           # Assimp generated headers (e.g., config.h)
 )
-
-# Define GL_SILENCE_DEPRECATION to silence OpenGL deprecation warnings on macOS
+# Silence deprecation warnings on macOS
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     GL_SILENCE_DEPRECATION
 )
 
+# Link against prebuilt Assimp
 target_link_directories(${PROJECT_NAME} PRIVATE
-    ${ASSIMP_BUILD_DIR}/lib         # Assimp built static/shared libs
+    ${ASSIMP_BUILD_DIR}/lib
+    ${ASSIMP_BUILD_DIR}/bin
 )
-
-
 # Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenGL::GL
     glfw
-    ${ASSIMP_BUILD_DIR}/bin/libassimp.dylib
+    SFML::Audio
+    ${ASSIMP_BUILD_DIR}/bin/libassimp.5.4.3.dylib
 )
 
 # Copy shader files to build directory
@@ -80,7 +84,7 @@ file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/shaders)
 add_custom_command(
     TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/resources
-    ${CMAKE_BINARY_DIR}/resources
+            ${CMAKE_SOURCE_DIR}/resources
+            ${CMAKE_BINARY_DIR}/resources
     COMMENT "Copying resources to build directory"
 )
