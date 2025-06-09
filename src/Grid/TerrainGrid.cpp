@@ -417,16 +417,38 @@ void TerrainGrid::GenerateSeaBottom(int expandWidth, int expandDepth) {
     
     // Update vertex positions and texture weights for expanded area
     auto& vertices = m_gridMesh->GetVertices();
+    
+    // First pass: Set expanded area to zero height with sand texture
     for (int z = 0; z < m_depth; z++) {
         for (int x = 0; x < m_width; x++) {
             int index = z * m_width + x;
-            // Set position to zero height for expanded area and walls
-            if (x >= oldWidth || z >= oldDepth || x == 0 || x == m_width - 1 || z == 0 || z == m_depth - 1) {
-                vertices[index].position.y = 0.0f;
-                // Set all splat weights to 0
+            if (x >= oldWidth || z >= oldDepth) {
+                vertices[index].position.y = -10.0f;
                 vertices[index].splatWeights.fill(0.0f);
-                // Set sand weight to 1.0
-                vertices[index].splatWeights[0] = 1.0f;
+                vertices[index].splatWeights[0] = 1.0f; // Sand texture
+            }
+        }
+    }
+    
+    // Second pass: Create vertical walls at the edges
+    for (int z = 0; z < m_depth; z++) {
+        for (int x = 0; x < m_width; x++) {
+            int index = z * m_width + x;
+            // Check if this is an edge vertex
+            if (x == 0 || x == m_width - 1 || z == 0 || z == m_depth - 1) {
+                // Get the height of the adjacent non-edge vertex
+                float adjacentHeight = -5.0f;
+                if (x > 0 && x < m_width - 1 && z > 0 && z < m_depth - 1) {
+                    // Use the height of the vertex one step inward
+                    int innerX = (x == 0) ? 1 : (x == m_width - 1) ? m_width - 2 : x;
+                    int innerZ = (z == 0) ? 1 : (z == m_depth - 1) ? m_depth - 2 : z;
+                    adjacentHeight = vertices[innerZ * m_width + innerX].position.y;
+                }
+                
+                // Set wall height to match adjacent terrain
+                vertices[index].position.y = adjacentHeight;
+                vertices[index].splatWeights.fill(0.0f);
+                vertices[index].splatWeights[0] = 1.0f; // Sand texture
             }
         }
     }

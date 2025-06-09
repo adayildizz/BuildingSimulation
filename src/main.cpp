@@ -665,7 +665,7 @@ private:
         
         // Add three water instances at different locations
         // First water - near the center
-        waterManager->addWaterAt(vec3(625.0f, 10.0f, 625.0f), 1600.0f);
+        waterManager->addWaterAt(vec3(625.0f, grid->GetMinHeight() - 5.0f, 625.0f), 1750.0f);
         CheckGLError("After first addWaterAt call in InitWater");
 
         //waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
