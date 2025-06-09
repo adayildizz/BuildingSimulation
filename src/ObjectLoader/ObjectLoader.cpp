@@ -47,7 +47,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
     cleanup();
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(filename,
-        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_FlipUVs);
+        aiProcess_Triangulate | aiProcess_GenNormals);
 
     if (!scene || !scene->HasMeshes()) {
         std::cerr << "Assimp load error for '" << filename << "': " << importer.GetErrorString() << std::endl;

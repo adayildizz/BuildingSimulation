@@ -133,17 +133,31 @@ public:
         mat4 lightSpaceMatrix;
         if (m_celestialLightManager) {
             vec3 lightDir = m_celestialLightManager->GetActiveLightDirection();
+
+            // The dynamic ortho projection logic from the previous fix is still needed.
+            float minOrthoSize = 450.0f;
+            float maxOrthoSize = 900.0f;
+            float sunElevation = std::clamp(lightDir.y, 0.0f, 1.0f);
+            // C++ equivalent of mix()
+            float currentOrthoSize = maxOrthoSize * (1.0f - sunElevation) + minOrthoSize * sunElevation;
+
+            mat4 lightProjection = Ortho(-currentOrthoSize, currentOrthoSize,
+                                         -currentOrthoSize, currentOrthoSize,
+                                         1.0f, 2000.0f);
             
-            // Create projection and view matrices from the light's perspective
-            float near_plane = 1.0f, far_plane = 2000.0f;
-            mat4 lightProjection = Ortho(-800.0f, 800.0f, -800.0f, 800.0f, near_plane, far_plane);
-            
-            // Position the light "behind" the scene center, looking at it
-            vec3 lightPos = vec3(625.0f, 500.0f, 625.0f) - lightDir * 600.0f;
-            mat4 lightView = LookAt(lightPos, vec3(625.0f, 0.0, 625.0f), vec3(0.0, 1.0, 0.0));
+            // --- CORRECTED VIEW MATRIX LOGIC ---
+            // 1. Define the point the light should look at.
+            vec3 sceneCenter = vec3(625.0f, 0.0f, 625.0f);
+
+            // 2. Position the light's camera far away from the center along the light's direction.
+            //    We use '+' here to move the camera "behind" the light.
+            vec3 lightPos = sceneCenter + lightDir * 1000.0f; // The distance (1000.0f) should be large enough to be outside the scene.
+
+            // 3. Create the LookAt matrix. The camera is at lightPos, looking at sceneCenter.
+            mat4 lightView = LookAt(lightPos, sceneCenter, vec3(0.0, 1.0, 0.0));
             
             lightSpaceMatrix = lightProjection * lightView;
-        }   
+        }
  
         // --- PASS 1 - Render scene to depth map ---
         glCullFace(GL_FRONT); // Fix for peter-panning shadow artifact
@@ -177,10 +191,6 @@ public:
             
  
             shader->setUniform("u_shadowsEnabled", !isSunAtZenith);
-            
-            if (isSunAtZenith) {
-                std::cout << "SUN IS AT ZENITH - DISABLING SHADOWS" << std::endl;
-            }
         }
 
         // Set Global Uniforms
