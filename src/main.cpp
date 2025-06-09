@@ -261,7 +261,7 @@ public:
                 case GLFW_KEY_N:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/Objects/Cat/cat.obj", {0});
+                    obj->load("../Objects/Cat/cat.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
                     gameObject->Scale(0.7f);
@@ -272,7 +272,7 @@ public:
                 case GLFW_KEY_T:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
-                    obj->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/Objects/Tree/Tree1.obj", {0});
+                    obj->load("../Objects/Tree/Tree1.obj", {0});
                     int index = objectManager->CreateNewObject(*obj);
                     gameObject = objectManager->GetGameObject(index);
                     gameObject->Scale(10.0f);
@@ -340,7 +340,7 @@ private:
         std::cout << "loading objects.." << std::endl;
         objectManager = new GameObjectManager();
         objectLoader = new ObjectLoader(*shader);
-        objectLoader->load("/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/Objects/Cottage/cottage_obj.obj");
+        objectLoader->load("../Objects/Cottage/cottage_obj.obj");
         int objectIndex = objectManager->CreateNewObject(*objectLoader);
         gameObject = objectManager->GetGameObject(objectIndex);
         gameObject->Scale(5.0f);
@@ -388,8 +388,8 @@ private:
         
         // Load the main shader
         shader = shaderManager.loadShader("unifiedShader",
-                                          "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/shaders/vshader.glsl",
-                                          "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/shaders/fshader.glsl");
+                                          "shaders/vshader.glsl",
+                                          "shaders/fshader.glsl");
         if (!shader) {
             std::cerr << "Failed to load unified shader (shaders/vshader.glsl, shaders/fshader.glsl)" << std::endl;
             exit(-1);
@@ -398,8 +398,8 @@ private:
 
         // Load the shadow shader
         m_shadowShader = shaderManager.loadShader("shadowShader",
-                                                   "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/shaders/shadow_vshader.glsl",
-                                                   "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/shaders/shadow_fshader.glsl");
+                                                   "shaders/shadow_vshader.glsl",
+                                                   "shaders/shadow_fshader.glsl");
         if (!m_shadowShader) {
             std::cerr << "Failed to load shadow shader" << std::endl;
             exit(-1);
@@ -425,10 +425,10 @@ private:
 
         const auto& layerPercentages = grid->GetLayerInfo();
         std::vector<std::string> texturePaths = {
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/resources/textures/grass.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/resources/textures/dirt.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/resources/textures/rock.jpg",
-            "/Users/ahmetnecc/Desktop/MY COMP410 PROJECTS/TerrainDemo2/TerrainDemo2/resources/textures/snow.jpg"
+            "resources/textures/grass.jpg",
+            "resources/textures/dirt.jpg",
+            "resources/textures/rock.jpg",
+            "resources/textures/snow.jpg"
         };
 
         m_terrainTextures.clear();
