@@ -330,6 +330,13 @@ void TerrainGrid::RaiseTerrain(float worldX, float worldZ, float height, float b
     // Calculate brush radius in grid units
     int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
     
+    // Get the maximum allowed height from the initial heightmap
+    float maxAllowedHeight = 0.0f;
+    for (float h : m_initHeightMap) {
+        maxAllowedHeight = std::max(maxAllowedHeight, h);
+    }
+    maxAllowedHeight *= 1.2f; // Allow 20% above original max height
+    
     // Iterate over the brush area
     for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
         for (int x = centerX - radiusInGrid; x <= centerX + radiusInGrid; x++) {
@@ -344,16 +351,19 @@ void TerrainGrid::RaiseTerrain(float worldX, float worldZ, float height, float b
             // Skip if outside brush radius
             if (distance > brushRadius) continue;
             
-            // Calculate falloff based on distance - using quadratic falloff for smooth transition
+            // Calculate falloff based on distance - using quadratic falloff for bowl shape
             float normalizedDistance = distance / brushRadius;
             float falloff = (1.0f - normalizedDistance * normalizedDistance);
             
             // Get current height
             float currentHeight = GetHeight(x, z);
             
-            // Calculate new height - raise height more at center
-            float raiseAmount = height * falloff * brushStrength;
+            // Calculate new height - create dome shape by raising height more at center
+            float raiseAmount = (height) * falloff; // Reduced sensitivity by 70%
             float newHeight = currentHeight + raiseAmount;
+            
+            // Clamp the new height to not exceed maxAllowedHeight
+            newHeight = std::min(newHeight, maxAllowedHeight);
             
             // Update height in heightmap
             m_heightMap[z * m_width + x] = newHeight;
@@ -365,4 +375,10 @@ void TerrainGrid::RaiseTerrain(float worldX, float worldZ, float height, float b
     
     // Update the mesh to reflect changes
     UpdateMesh();
+}
+
+void TerrainGrid::StoreInitHeightMap()
+{
+    // Store a copy of the current heightmap
+    m_initHeightMap = m_heightMap;
 }

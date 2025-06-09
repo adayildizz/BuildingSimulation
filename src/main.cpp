@@ -35,6 +35,7 @@ float ObjectPosZ = 600.0f;
 bool isTexturePainting = false;
 bool isFlattening = false; 
 bool isDigging = false;     
+bool isRaising = false;     // New state for raising terrain
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
 float brushRadius = 30.0f;  // can be adjusted
 float brushStrength = 10.0f; // can be adjusted
@@ -256,17 +257,28 @@ public:
                     break;
                 case GLFW_KEY_P:
                     isTexturePainting = !isTexturePainting;
-                    isFlattening = false;  // Disable flattening when texture painting is enabled
+                    isFlattening = false;
+                    isDigging = false;
+                    isRaising = false;
                     std::cout << "Texture painting mode: " << (isTexturePainting ? "ON" : "OFF") << std::endl;
                     break;
-                case GLFW_KEY_F:  // New key for flattening mode
-                    
+                case GLFW_KEY_F:
                     isFlattening = !isFlattening;
-                    if(!isFlattening){
-                        // add water instance here 
-                    }
-                    isTexturePainting = false;  
+                    isTexturePainting = false;
+                    isDigging = false;
+                    isRaising = false;
                     std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_Z:
+                    isRaising = !isRaising;
+                    isTexturePainting = false;
+                    isFlattening = false;
+                    isDigging = false;
+                    if (isRaising) {
+                        // Store initial heightmap when entering raising mode
+                        grid->StoreInitHeightMap();
+                    }
+                    std::cout << "Raising mode: " << (isRaising ? "ON" : "OFF") << std::endl;
                     break;
                 case GLFW_KEY_1:
                 case GLFW_KEY_2:
@@ -414,26 +426,17 @@ public:
         mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
         // Update texture painting or flattening while dragging
-        if ((isTexturePainting || isFlattening) && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-            std::cout << "Mouse drag - Texture painting: " << isTexturePainting << ", Flattening: " << isFlattening << std::endl;
+        if ((isTexturePainting || isFlattening) && 
+            glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             vec3 intersectionPoint;
             if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
                 if (isTexturePainting) {
                     grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
                                     currentTextureLayer, brushRadius, brushStrength);
                 } else if (isFlattening) {
-                    std::cout << "Calling Flatten at intersection point: (" << intersectionPoint.x << ", " << intersectionPoint.z << ")" << std::endl;
-                    auto flattenedPoints = grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
+                    grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
                                 brushRadius, brushStrength);
-                    
-                    // Print the coordinates of flattened points
-                    std::cout << "Flattened " << flattenedPoints.size() << " points:" << std::endl;
-                    for (const auto& point : flattenedPoints) {
-                        std::cout << "  Grid coordinates: (" << point.first << ", " << point.second << ")" << std::endl;
-                    }
                 }
-            } else {
-                std::cout << "No terrain intersection found" << std::endl;
             }
         } else {
             camera->OnMouse(x, y);
@@ -452,7 +455,7 @@ public:
         
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             if (state == GLFW_PRESS) {
-                // Start painting, flattening, or digging
+                // Start painting, flattening, digging, or raising
                 vec3 intersectionPoint;
                 if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
                     if (isTexturePainting) {
@@ -464,15 +467,12 @@ public:
                     } else if (isDigging) {
                         std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
                                                 brushRadius, brushStrength);
-                        // Append new points to the existing list
                         lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
-                        std::cout << "Added " << newDugPoints.size() << " points. Total points: " << lastDugPoints.size() << std::endl;
+                    } else if (isRaising) {
+                        // Raise terrain by the same amount that digging would lower it
+                        grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z, 
+                                        brushStrength, brushRadius, 1.0f);
                     }
-                }
-            } else if (state == GLFW_RELEASE) {
-                // Reset flattening state when mouse button is released
-                if (isFlattening) {
-                    grid->ResetFlatteningState();
                 }
             }
         } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
