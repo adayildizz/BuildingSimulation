@@ -163,7 +163,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
     }
     
     calculateBoundingBox(scene, meshesToLoadIndices);
-    return true;
+    return true; 
 }
 
 void ObjectLoader::render(Shader& program) {

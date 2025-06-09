@@ -123,6 +123,8 @@ public:
         objectManager->RenderAll(*m_shadowShader); // We need to modify RenderAll to accept a shader
     }
 
+    
+    
     void RenderScene()
     {
         // --- Calculate Light Space Matrix ---
@@ -148,8 +150,10 @@ public:
 
         // --- PASS 2 - Render scene normally with shadows ---
         glBindFramebuffer(GL_FRAMEBUFFER, 0); // Bind back to default framebuffer
-        glViewport(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
-        
+
+        glViewport(0, 0, window->getWidth(), window->getHeight());
+
+
         // Get Sky Color and Clear Buffers
         vec3 currentSkyColor = vec3(0.0f);
         if (m_celestialLightManager) {
@@ -222,7 +226,7 @@ public:
                                            intersectionPoint.z - halfWidth, 1.0f));
             }
         }
-        
+
         objectManager->RenderAll(*shader);
     }
 
@@ -337,7 +341,7 @@ private:
         vec3 cameraUp = vec3(0.0f, 1.0f, 0.0f);
         float fov = 45.0f;
         float zNear = 0.1f;
-        float zFar = 2000.0f;
+        float zFar = 3000.0f;
         PersProjInfo persProjInfo = {fov, static_cast<float>(WINDOW_WIDTH), static_cast<float>(WINDOW_HEIGHT), zNear, zFar};
 
         camera = std::make_unique<Camera>(persProjInfo, cameraPos, cameraTarget, cameraUp);
@@ -389,7 +393,7 @@ private:
         }
         std::cout << "Shadow shader loaded successfully." << std::endl;
     }
-
+        
     void InitGrid()
     {
         float worldScale = 5.0f;
