@@ -175,4 +175,10 @@ void Shader::setUniform(const std::string& name, const mat3& value) const {
 
 void Shader::setUniform(const std::string& name, const mat4& value) const {
     glUniformMatrix4fv(getUniformLocation(name), 1, GL_TRUE, value);
-} 
+}
+
+void Shader::setUniform(const std::string& name, bool value) const {
+    // We get the location and then explicitly convert the C++ bool
+    // to a GLint (0 for false, 1 for true) for OpenGL.
+    glUniform1i(getUniformLocation(name), static_cast<GLint>(value));
+}

@@ -20,7 +20,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <cmath>
-
+ 
 //global mouse pos
 double mouseX = 0.0f;
 double mouseY = 0.0f;
@@ -141,7 +141,7 @@ public:
             mat4 lightView = LookAt(lightPos, vec3(625.0f, 0.0, 625.0f), vec3(0.0, 1.0, 0.0));
             
             lightSpaceMatrix = lightProjection * lightView;
-        }
+        }   
  
         // --- PASS 1 - Render scene to depth map ---
         glCullFace(GL_FRONT); // Fix for peter-panning shadow artifact
@@ -161,12 +161,25 @@ public:
             if (light) {
                 m_celestialLightManager->ConfigureLight(light.get());
             }
-        }
+        } 
         glClearColor(currentSkyColor.x, currentSkyColor.y, currentSkyColor.z, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+ 
         // Use the unified shader for all rendering
         shader->use();
+          
+        if (m_celestialLightManager) {
+            // Check if the sun is at its peak.
+            bool isSunAtZenith = m_celestialLightManager->IsSunAtZenith();
+            // Enable shadows unless the sun is at its zenith.
+            
+ 
+            shader->setUniform("u_shadowsEnabled", !isSunAtZenith);
+            
+            if (isSunAtZenith) {
+                std::cout << "SUN IS AT ZENITH - DISABLING SHADOWS" << std::endl;
+            }
+        }
 
         // Set Global Uniforms
         mat4 viewProjMatrix = camera->GetViewProjMatrix();

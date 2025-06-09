@@ -19,6 +19,9 @@ uniform sampler2D objectTexture;
 
 // NEW: Shadow map sampler
 uniform sampler2D shadowMap;
+uniform bool u_shadowsEnabled;
+//const bool u_shadowsEnabled = false;
+
 
 // Height thresholds for blending textures (for terrain)
 uniform float gHeight0;
@@ -82,7 +85,6 @@ vec4 CalculateBlendedTextureColor()
     return finalTexColor;
 }
 
-// NEW: Function to calculate the shadow factor
 float CalculateShadowFactor()
 {
     // Perform perspective divide
@@ -118,8 +120,13 @@ void main()
         albedo = texture(objectTexture, outTexCoord);
     }
     
-    // NEW: Calculate the shadow factor (0.0 = in shadow, 1.0 = lit)
-    float shadow = 1.0 - CalculateShadowFactor();
+    // By default, assume the fragment is fully lit (no shadow)
+    float shadow = 1.0;
+    
+    // Only calculate shadows if the switch is enabled
+    if (u_shadowsEnabled) {
+        shadow = 1.0 - CalculateShadowFactor();
+    }
 
     vec3 N_world = normalize(outNormal_world);
     vec3 L_world = normalize(directionalLight.direction);
