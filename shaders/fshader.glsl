@@ -3,9 +3,10 @@
 layout(location = 0) out vec4 FragColor;
 
 in vec4 baseColor;
-in vec2 outTexCoord;      // Texture coordinates from vertex shader
-in vec3 outWorldPos;      // World position from vertex shader
-in vec3 outNormal_world;  // World-space normal from vertex shader
+in vec2 outTexCoord;        // Texture coordinates from vertex shader
+in vec3 outWorldPos;        // World position from vertex shader
+in vec3 outNormal_world;    // World-space normal from vertex shader
+in vec4 outWorldPosLightSpace; // NEW: World position from the light's perspective
 
 // Texture samplers for terrain layers
 uniform sampler2D gTextureHeight0;
@@ -15,6 +16,12 @@ uniform sampler2D gTextureHeight3;
 
 // Separate texture sampler for objects
 uniform sampler2D objectTexture;
+
+// NEW: Shadow map sampler
+uniform sampler2D shadowMap;
+uniform bool u_shadowsEnabled;
+//const bool u_shadowsEnabled = false;
+
 
 // Height thresholds for blending textures (for terrain)
 uniform float gHeight0;
@@ -41,16 +48,16 @@ uniform Material material;
 // Camera's world position
 uniform vec3 gViewPosition_world;
 
-// NEW: Uniform to differentiate between terrain and object
+// Uniform to differentiate between terrain and object
 uniform bool u_isTerrain;
 
 // Function to calculate blended texture color based on height (for terrain)
 vec4 CalculateBlendedTextureColor()
 {
+    // ... (This function remains unchanged)
     vec4 finalTexColor;
     float currentHeight = outWorldPos.y;
 
-    // Ensure blend ranges are valid to prevent division by zero or negative values
     float range0 = gHeight1 - gHeight0;
     float range1 = gHeight2 - gHeight1;
     float range2 = gHeight3 - gHeight2;
@@ -78,6 +85,31 @@ vec4 CalculateBlendedTextureColor()
     return finalTexColor;
 }
 
+float CalculateShadowFactor()
+{
+    // Perform perspective divide
+    vec3 projCoords = outWorldPosLightSpace.xyz / outWorldPosLightSpace.w;
+    
+    // Transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+
+    // Get closest depth from light's POV (from shadow map)
+    float closestDepth = texture(shadowMap, projCoords.xy).r;
+
+    // Get current depth from light's POV
+    float currentDepth = projCoords.z;
+
+    // Check if the current fragment is in shadow
+    // Add a bias to prevent "shadow acne"
+    float bias = max(0.005 * (1.0 - dot(normalize(outNormal_world), normalize(directionalLight.direction))), 0.0005);
+    
+    // If current depth is greater than the stored depth, it's in shadow
+    // The '1.0' at the end handles cases where the fragment is outside the shadow map's frustum
+    float shadow = (projCoords.z > 1.0) ? 0.0 : (currentDepth - bias > closestDepth ? 1.0 : 0.0);
+
+    return shadow;
+}
+
 void main()
 {
     vec4 albedo;
@@ -85,34 +117,36 @@ void main()
     if (u_isTerrain) {
         albedo = CalculateBlendedTextureColor();
     } else {
-        // Object rendering: Use the dedicated object texture sampler
         albedo = texture(objectTexture, outTexCoord);
+    }
+    
+    // By default, assume the fragment is fully lit (no shadow)
+    float shadow = 1.0;
+    
+    // Only calculate shadows if the switch is enabled
+    if (u_shadowsEnabled) {
+        shadow = 1.0 - CalculateShadowFactor();
     }
 
     vec3 N_world = normalize(outNormal_world);
-    vec3 L_world = normalize(directionalLight.direction); // Points from surface TO light
-    vec3 I_world = -L_world;                             // Incident light vector
-
+    vec3 L_world = normalize(directionalLight.direction);
+    vec3 V_world = normalize(gViewPosition_world - outWorldPos);
+    
     // Ambient Lighting
-    vec3 ambient_lighting_color = directionalLight.ambientIntensity * directionalLight.color;
+    vec3 ambient = directionalLight.ambientIntensity * directionalLight.color;
 
     // Diffuse Lighting
-    float N_dot_L = max(dot(N_world, L_world), 0.0);
-    vec3 diffuse_lighting_color = directionalLight.diffuseIntensity * N_dot_L * directionalLight.color;
+    float diff = max(dot(N_world, L_world), 0.0);
+    vec3 diffuse = directionalLight.diffuseIntensity * diff * directionalLight.color;
 
     // Specular Lighting
-    vec3 specular_lighting_color = vec3(0.0);
-    if (N_dot_L > 0.0) // Only if light hits the front face
-    {
-        vec3 V_world = normalize(gViewPosition_world - outWorldPos); // View vector
-        vec3 R_world = reflect(I_world, N_world);                    // Reflected light vector
-        float V_dot_R = max(dot(V_world, R_world), 0.0);
-        float specFactor = pow(V_dot_R, material.shininess);
-        specular_lighting_color = material.specularIntensity * specFactor * directionalLight.color;
-    }
+    vec3 R_world = reflect(-L_world, N_world);
+    float spec = pow(max(dot(V_world, R_world), 0.0), material.shininess);
+    vec3 specular = material.specularIntensity * spec * directionalLight.color;
 
     // Combine lighting components
-    vec3 finalColor = albedo.rgb * (ambient_lighting_color + diffuse_lighting_color) + specular_lighting_color;
+    // Apply the shadow factor to diffuse and specular light, but not ambient
+    vec3 finalColor = (ambient + shadow * (diffuse + specular)) * albedo.rgb;
 
     FragColor = vec4(finalColor, albedo.a);
 }

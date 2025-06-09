@@ -7,7 +7,7 @@
 #include <assimp/postprocess.h>
 #include <vector>
 #include <string>
-#include <iostream> 
+#include <iostream>
 #include "../Core/Shader.h" //For error messages
 
 class ObjectLoader {
@@ -16,8 +16,7 @@ public:
     ~ObjectLoader();
 
     bool load(const std::string& filename, const std::vector<unsigned int>& meshesToLoadIndices = {});
-    void render();
-    Shader program;
+    void render(Shader& program); // Modified to accept a shader
     
     // Bounding box methods
     vec3 GetBoundingBoxSize() const;
@@ -29,15 +28,9 @@ private:
     void cleanup(); // Helper for destructor and potential re-load
     void calculateBoundingBox(const aiScene* scene, const std::vector<unsigned int>& meshesToLoadIndices);
 
-     // Shader program ID
     std::vector<GLuint> vaos, vbos, ebos;
     std::vector<int> indexCounts;
     std::vector<GLuint> meshTextureIDs;
-     // Stores texture IDs for each mesh
-    // meshColors is not directly used for rendering if textures are primary, 
-    // but could be if shaders support vertex colors or untextured materials.
-    // For now, assuming texture or default white.
-    // std::vector<vec4> meshColors; 
     
     GLuint defaultWhiteTextureID;
     
@@ -45,7 +38,6 @@ private:
     vec3 boundingBoxMin;
     vec3 boundingBoxMax;
     bool boundingBoxCalculated;
-
 };
 
 #endif // OBJECT_LOADER_H

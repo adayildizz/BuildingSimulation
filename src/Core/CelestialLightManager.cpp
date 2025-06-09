@@ -39,8 +39,7 @@ void CelestialLightManager::CalculateCelestialProperties() {
     // This path makes it rise in +Y, move across X, and set. Z is a slight tilt.
     calculatedCelestialDirection.x = cos(celestialAngleRadians);
     calculatedCelestialDirection.y = sin(celestialAngleRadians);
-    calculatedCelestialDirection.z = 0.2f; // Adjust for desired celestial path tilt
-
+    calculatedCelestialDirection.z = 0.0f;
     // Determine dayFactor: 0 for night (celestial body below horizon), 1 for full day (celestial body at zenith)
     float dayFactor = fmax(0.0f, calculatedCelestialDirection.y);
     
@@ -101,4 +100,21 @@ void CelestialLightManager::ConfigureLight(Light* lightObject) const {
         lightObject->SetAmbientIntensity(m_activeAmbientIntensity);
         lightObject->SetDiffuseIntensity(m_activeDiffuseIntensity);
     }
+}
+
+bool CelestialLightManager::IsSunAtZenith() const {
+    // The world's 'up' vector
+    vec3 upVector = vec3(0.0f, 1.0f, 0.0f);
+    
+    // Get the current light direction
+    vec3 lightDir = GetActiveLightDirection();
+    
+    // If the dot product of the light direction and the world up vector is
+    // very close to 1.0, it means the light is almost directly overhead.
+    // A threshold of 0.99 gives a small window around the peak.
+    if (dot(lightDir, upVector) > 0.80f) {
+        return true;
+    }
+    
+    return false;
 }

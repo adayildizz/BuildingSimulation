@@ -30,6 +30,8 @@ Window::Window(int width, int height, const std::string& title)
     
     // Make the window's context current
     glfwMakeContextCurrent(m_window);
+    glfwGetFramebufferSize(m_window, &m_width, &m_height);
+
     
     // Set callbacks
     glfwSetWindowUserPointer(m_window, this);
