@@ -55,7 +55,7 @@ private:
     // Helper for fault formation logic (if needed internally and shared)
     void ApplyFaults(std::vector<float>& heightMap, float displacementRange, int iterations);
     // Helper for normalization
-    void NormalizeHeightmap(std::vector<float>& heightMap, float targetMaxHeight);
+    void NormalizeHeightmap(std::vector<float>& heightMap, float targetMaxHeight, float minTargetHeight = 10.0f);
     // Helper for smoothing
     void SmoothHeightmap(std::vector<float>& heightMap, float filterFactor);
 

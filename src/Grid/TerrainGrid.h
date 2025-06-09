@@ -49,6 +49,9 @@ public:
     
     // Sea bottom generation
     void GenerateSeaBottom(int expandWidth, int expandDepth);
+    
+    // Shore creation
+    void CreateShore(int shoreWidth); // Creates a shore area near Z=250 boundary
 
 private:
     // Heightmap data

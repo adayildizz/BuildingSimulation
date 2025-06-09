@@ -178,7 +178,7 @@ std::vector<float> TerrainGenerator::GenerateVolcanicCalderaTerrain(float maxEdg
     }
 
     // Step 3: Normalize final heightMap to [0, maxEdgeHeight]
-    NormalizeHeightmap(heightMap, maxEdgeHeight);
+    NormalizeHeightmap(heightMap, maxEdgeHeight); 
     
     // Re-ensure center is flat (important if normalization shifted values)
     if (flatRadius > 0) { // Only if there is a flat center
@@ -250,7 +250,7 @@ TerrainGenerator::TerrainLayerInfo TerrainGenerator::GetLayerInfo(TerrainType ty
 }
 
 // Helper: Normalize heightmap to [0, targetMaxHeight]
-void TerrainGenerator::NormalizeHeightmap(std::vector<float>& heightMap, float targetMaxHeight) {
+void TerrainGenerator::NormalizeHeightmap(std::vector<float>& heightMap, float targetMaxHeight,  float minTargetHeight) {
     if (heightMap.empty()) return;
 
     float minH = heightMap[0];
@@ -262,7 +262,7 @@ void TerrainGenerator::NormalizeHeightmap(std::vector<float>& heightMap, float t
 
     if (maxH > minH) {
         for (float& h : heightMap) {
-            h = targetMaxHeight * (h - minH) / (maxH - minH);
+            h = minTargetHeight + targetMaxHeight * (h - minH) / (maxH - minH);
         }
     } else { // All heights are the same
         // If all same, set to targetMaxHeight / 2 or 0 depending on context

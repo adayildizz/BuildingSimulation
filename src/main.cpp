@@ -325,82 +325,6 @@ public:
                     break;
                 case GLFW_KEY_L:  // New key for digging mode
                     isDigging = !isDigging;
-                    if (!isDigging) {  // If we're exiting digging mode
-                        if (!lastDugPoints.empty()) {
-                            // Calculate center and bounding box of dug points
-                            vec3 center(0.0f);
-                            vec3 minPoint(FLT_MAX);
-                            vec3 maxPoint(-FLT_MAX);
-                            
-                            std::cout << "Total dug points in session: " << lastDugPoints.size() << std::endl;
-                            
-                            for (const auto& point : lastDugPoints) {
-                                center += point;
-                                // Update bounding box
-                                minPoint.x = std::min(minPoint.x, point.x);
-                                minPoint.y = std::min(minPoint.y, point.y);
-                                minPoint.z = std::min(minPoint.z, point.z);
-                                maxPoint.x = std::max(maxPoint.x, point.x);
-                                maxPoint.y = std::max(maxPoint.y, point.y);
-                                maxPoint.z = std::max(maxPoint.z, point.z);
-                            }
-                            center /= static_cast<float>(lastDugPoints.size());
-                            
-                            // Calculate the size of the bounding box
-                            float width = maxPoint.x - minPoint.x;
-                            float depth = maxPoint.z - minPoint.z;
-                            float size = std::max(width, depth);
-                            
-                            std::cout << "Digging session bounds:" << std::endl;
-                            std::cout << "  Min point: (" << minPoint.x << ", " << minPoint.y << ", " << minPoint.z << ")" << std::endl;
-                            std::cout << "  Max point: (" << maxPoint.x << ", " << maxPoint.y << ", " << maxPoint.z << ")" << std::endl;
-                            std::cout << "  Center: (" << center.x << ", " << center.y << ", " << center.z << ")" << std::endl;
-                            std::cout << "  Size: " << size << std::endl;
-                            
-                            // Create a small elevation around the dug area
-                            float waterMeshSize = size * 1.2f; // Size of water mesh (with 20% margin)
-                            float embankmentWidth = waterMeshSize * 0.15f; // 15% of water mesh size for embankment
-                            float waterHeight = center.y; // Use the center height as water surface height
-                            float embankmentHeight = 3.0f; // Height of the embankment above water
-                            
-                            // Create embankment by raising terrain in a ring around the dug area
-                            for (float angle = 0; angle < 360.0f; angle += 5.0f) { // 5-degree steps
-                                float rad = angle * M_PI / 180.0f;
-                                float outerRadius = (waterMeshSize * 0.5f) + embankmentWidth; // Outer edge of embankment
-                                float innerRadius = waterMeshSize * 0.5f; // Inner edge of embankment (water mesh edge)
-                                
-                                // Create points along the embankment ring
-                                for (float r = innerRadius; r <= outerRadius; r += 2.0f) {
-                                    float x = center.x + r * cos(rad);
-                                    float z = center.z + r * sin(rad);
-                                    
-                                    // Calculate falloff from inner to outer edge
-                                    float falloff = (r - innerRadius) / embankmentWidth;
-                                    float height = embankmentHeight * (1.0f - falloff);
-                                    
-                                    // Get current terrain height at this point
-                                    float currentHeight = grid->GetHeightAtWorldPos(x, z);
-                                    
-                                    // Only raise if current height is below water level
-                                    if (currentHeight < waterHeight) {
-                                        // Raise to at least water height plus embankment height
-                                        float targetHeight = waterHeight + height;
-                                        float raiseAmount = targetHeight - currentHeight;
-                                        grid->RaiseTerrain(x, z, raiseAmount, embankmentWidth * 0.5f, 1.0f);
-                                    }
-                                }
-                            }
-                            
-                            // Add water at the center with size based on the bounding box
-                            waterManager->addWaterAt(center, waterMeshSize); // Use the same size we used for embankment
-                            
-                            // Clear the dug points for next operation
-                            lastDugPoints.clear();
-                        }
-                    } else {
-                        // Clear points when entering digging mode
-                        lastDugPoints.clear();
-                    }
 
                     isTexturePainting = false;  // Disable other modes
                     isFlattening = false;       // Disable other modes
@@ -409,7 +333,13 @@ public:
             
                 case 'H':
                     // Generate sea bottom by expanding the grid
-                    grid->GenerateSeaBottom(50, 50); // Expand by 50 units in both width and depth
+                    grid->GenerateSeaBottom(0, 200); // Expand by 50 units in both width and depth
+                    break;
+                
+                
+                
+                case 'J':
+                    grid->CreateShore(30); // Create a 30-unit wide shore
                     break;
             }
 
@@ -665,7 +595,7 @@ private:
         
         // Add three water instances at different locations
         // First water - near the center
-        waterManager->addWaterAt(vec3(625.0f, grid->GetMinHeight() - 5.0f, 625.0f), 1750.0f);
+        waterManager->addWaterAt(vec3(625.0f, grid->GetMinHeight() - 5.0f, 625.0f),1250.0f, 3500.0f);
         CheckGLError("After first addWaterAt call in InitWater");
 
         //waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance

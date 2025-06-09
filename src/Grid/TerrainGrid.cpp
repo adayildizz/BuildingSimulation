@@ -457,3 +457,43 @@ void TerrainGrid::GenerateSeaBottom(int expandWidth, int expandDepth) {
     m_gridMesh->CalculateNormals(this, vertices);
     m_gridMesh->UpdateVertexBuffer();
 }
+
+void TerrainGrid::CreateShore(int shoreWidth) {
+    // Start from the far end (Z=250) and work backwards
+    for (int z = m_depth - 1; z >= m_depth - shoreWidth; z--) {
+        // Calculate how far we are from the edge (0 to 1)
+        float t = static_cast<float>(m_depth - 1 - z) / shoreWidth;
+        
+        // Smooth step function for gradual transition
+        float smoothT = t * t * (3.0f - 2.0f * t);
+        
+        // For each x coordinate
+        for (int x = 0; x < m_width; x++) {
+            int index = z * m_width + x;
+            
+            // Get current height
+            float currentHeight = m_heightMap[index];
+            
+            // Gradually reduce height to near zero
+            float targetHeight = currentHeight * smoothT;
+            
+            // Update heightmap
+            m_heightMap[index] = targetHeight;
+            
+            // Update vertex position and texture
+            auto& vertex = m_gridMesh->GetVertex(index);
+            vertex.position.y = targetHeight;
+            
+            // Set sand texture for the shore area
+            vertex.splatWeights.fill(0.0f);
+            vertex.splatWeights[0] = 1.0f; // Sand texture
+        }
+    }
+    
+    // Update the mesh
+    m_gridMesh->CalculateNormals(this, m_gridMesh->GetVertices());
+    m_gridMesh->UpdateVertexBuffer();
+    
+    // Recalculate min/max heights
+    CalculateMinMaxHeights();
+}

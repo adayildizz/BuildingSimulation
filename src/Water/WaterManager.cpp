@@ -3,7 +3,7 @@
 WaterManager::WaterManager(std::shared_ptr<Shader> waterShader, int screenWidth, int screenHeight)
     : waterShader(waterShader), screenWidth(screenWidth), screenHeight(screenHeight) {}
 
-void WaterManager::addWaterAt(const vec3& position, float scale) {
+void WaterManager::addWaterAt(const vec3& position, float scaleWidth, float scaleDepth) {
    std::cout << "Adding new water instance at (" << position.x << ", " << position.y << ", " << position.z << ")" << std::endl;
 
     CheckGLError("Start of addWaterAt"); // New: Check context immediately
@@ -28,7 +28,7 @@ void WaterManager::addWaterAt(const vec3& position, float scale) {
     std::cout << "Refraction FBO created: " << newWater->refractionFBO << std::endl;
     CheckGLError("After refraction FBO creation in addWaterAt"); // New
 
-    waters.push_back({ std::move(newWater), position, scale });
+    waters.push_back({ std::move(newWater), position, scaleWidth, scaleDepth });
     std::cout << "Total water instances: " << waters.size() << std::endl;
     CheckGLError("End of addWaterAt"); // New
 }
@@ -79,7 +79,7 @@ void WaterManager::renderAll(const mat4& viewProjMatrix, Camera* camera, Shader*
         glViewport(0, 0, screenWidth, screenHeight);
         waterShader->use();
 
-        mat4 model = Translate(instance.position) * Scale(instance.scale, 1.0f, instance.scale);
+        mat4 model = Translate(instance.position) * Scale(instance.scaleWidth, 1.0f, instance.scaleDepth);
         waterShader->setUniform("ModelView", model);
         waterShader->setUniform("Projection", viewProjMatrix);
         waterShader->setUniform("eyePosition", vec4(camera->GetPosition(), 1.0f));

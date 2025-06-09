@@ -11,7 +11,7 @@ class WaterManager {
 public:
     WaterManager(std::shared_ptr<Shader> waterShader, int screenWidth, int screenHeight);
 
-    void addWaterAt(const vec3& position, float scale);
+    void addWaterAt(const vec3& position, float scaleWidth, float scaleDepth);
     void renderAll(const mat4& viewProjMatrix, Camera* camera, Shader* worldShader,
                   std::function<void(vec4 clipPlane, mat4 viewProjMatrix)> renderSceneFunc);
     void CheckGLError(const std::string& location);
@@ -19,7 +19,8 @@ private:
     struct WaterInstance {
         std::unique_ptr<Water> water;
         vec3 position;
-        float scale;
+        float scaleWidth;
+        float scaleDepth;
     };
 
     std::vector<WaterInstance> waters;
