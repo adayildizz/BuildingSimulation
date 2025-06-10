@@ -90,7 +90,7 @@ void UIDropdownMenu::Update(float deltaTime) {
     // Debug output
     static int debugCounter = 0;
     if (debugCounter++ % 60 == 0 && m_isOpen) { // Print every 60 frames when open
-        std::cout << "Animation progress: " << m_animationProgress << ", any buttons visible: " << anyVisible << std::endl;
+        //std::cout << "Animation progress: " << m_animationProgress << ", any buttons visible: " << anyVisible << std::endl;
     }
     
     // Remove buttons from UIRenderer when animation is complete and dropdown is closed

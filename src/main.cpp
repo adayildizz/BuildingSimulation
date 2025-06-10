@@ -46,6 +46,7 @@ const int GRID_SIZE = 250; // Size of the grid
 const unsigned int SHADOW_WIDTH = 4096, SHADOW_HEIGHT = 4096; // Shadow map resolution
 
 ObjectLoader* objectLoader;
+std::vector<ObjectLoader*> objectLoaders;
 GameObject* gameObject; //SelectedGameObject
 
 // Forward declarations of callback functions
@@ -59,6 +60,14 @@ std::unique_ptr<Material> m_terrainMaterial;
 std::shared_ptr<Shader> shader;
 std::shared_ptr<Shader> m_shadowShader; // Pointer for the shadow shader
 GameObjectManager* objectManager;
+
+//CONSTANTS
+std::vector<std::pair<std::string, std::vector<unsigned int>>> objectPaths = {
+    {"../Objects/Cottage/cottage_obj.obj", {}},
+    {"../Objects/Tree/Tree1.obj", {0}},
+    {"../Objects/Cat/cat.obj", {}}
+};
+
 
 // Grid demo application
 class GridDemo
@@ -431,12 +440,21 @@ private:
     void InitObjects(){
         std::cout << "loading objects.." << std::endl;
         objectManager = new GameObjectManager();
-        objectLoader = new ObjectLoader(*shader);
-        objectLoader->load("../Objects/Cottage/cottage_obj.obj");
-        int objectIndex = objectManager->CreateNewObject(*objectLoader);
+        for(int i = 0; i<3;i++){
+            
+        }
+        for(int i = 0; i<3;i++){
+            ObjectLoader* objectLoader = new ObjectLoader(*shader);
+            objectLoader->load(objectPaths[i].first, objectPaths[i].second); 
+            objectLoaders.push_back(objectLoader);
+        }
+        
+       
+        /**int objectIndex = objectManager->CreateNewObject(*objectLoader);
         gameObject = objectManager->GetGameObject(objectIndex);
         gameObject->Scale(5.0f);
         gameObject->isInPlacement = true; // Initially placed
+        */
     }
 
     void InitCamera()
@@ -530,23 +548,30 @@ private:
         m_objectMenu2->AddMenuItem("Rock", [this]() {
             std::cout << "Painting Rock terrain..." << std::endl;
             // You can add terrain modification logic here later
-        });
+            isTexturePainting = true;
+            currentTextureLayer = 3;
+
+        }, "resources/icons/rock.jpg");
         
         m_objectMenu2->AddMenuItem("Grass", [this]() {
             std::cout << "Painting Grass terrain..." << std::endl;
             // You can add terrain modification logic here later
-        });
+            isTexturePainting = true;
+            currentTextureLayer = 2;
+        },"resources/icons/grass1.jpg");
         
         m_objectMenu2->AddMenuItem("Dirt", [this]() {
             std::cout << "Painting Dirt terrain..." << std::endl;
             // You can add terrain modification logic here later
-        });
+            isTexturePainting = true;
+            currentTextureLayer = 1;
+        },"resources/icons/dirt.jpg");
         // Add menu items for different objects
         m_objectMenu->AddMenuItem("Cat", [this]() {
             std::cout << "Loading Cat..." << std::endl;
-            ObjectLoader* obj = new ObjectLoader(*shader);
-            obj->load("../Objects/Cat/cat.obj", {0});
-            int index = objectManager->CreateNewObject(*obj);
+            //ObjectLoader* obj = new ObjectLoader(*shader);
+            //obj->load("../Objects/Cat/cat.obj", {0});
+            int index = objectManager->CreateNewObject(*objectLoaders[2]);
             GameObject* newGameObject = objectManager->GetGameObject(index);
             if (newGameObject) {
                 newGameObject->Scale(0.7f);
@@ -554,32 +579,35 @@ private:
                 newGameObject->isInPlacement = true;
                 gameObject = newGameObject;
             }
+            isTexturePainting = false;
         }, "resources/icons/cat.png");
         
         m_objectMenu->AddMenuItem("Tree", [this]() {
             std::cout << "Loading Tree..." << std::endl;
-            ObjectLoader* obj = new ObjectLoader(*shader);
-            obj->load("../Objects/Tree/Tree1.obj", {0});
-            int index = objectManager->CreateNewObject(*obj);
+            //ObjectLoader* obj = new ObjectLoader(*shader);
+            //obj->load("../Objects/Tree/Tree1.obj", {0});
+            int index = objectManager->CreateNewObject(*objectLoaders[1]);
             GameObject* newGameObject = objectManager->GetGameObject(index);
             if (newGameObject) {
                 newGameObject->Scale(10.0f);
                 newGameObject->isInPlacement = true;
                 gameObject = newGameObject;
             }
+            isTexturePainting = false;
         }, "resources/icons/tree.png");
         
         m_objectMenu->AddMenuItem("Cottage", [this]() {
             std::cout << "Loading Cottage..." << std::endl;
-            ObjectLoader* obj = new ObjectLoader(*shader);
-            obj->load("../Objects/Cottage/cottage_obj.obj");
-            int index = objectManager->CreateNewObject(*obj);
+            //ObjectLoader* obj = new ObjectLoader(*shader);
+            //obj->load("../Objects/Cottage/cottage_obj.obj");
+            int index = objectManager->CreateNewObject(*objectLoaders[0]);
             GameObject* newGameObject = objectManager->GetGameObject(index);
             if (newGameObject) {
                 newGameObject->Scale(5.0f);
                 newGameObject->isInPlacement = true;
                 gameObject = newGameObject;
             }
+            isTexturePainting = false;
         },"resources/icons/cottage.png");
         
         // Set button callback to toggle menu
@@ -593,6 +621,8 @@ private:
             std::cout << "Menu button 2 clicked! Toggling dropdown..." << std::endl;
             m_objectMenu2->ToggleOpen();
             std::cout << "Dropdown 2 is now: " << (m_objectMenu2->IsOpen() ? "OPEN" : "CLOSED") << std::endl;
+            if(!m_objectMenu2->IsOpen()) isTexturePainting = false;
+
         });
         
         m_uiRenderer->AddUIElement(menuButton);
