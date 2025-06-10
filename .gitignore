@@ -27,13 +27,16 @@ CMakeCache.txt
 cmake_install.cmake
 Makefile
 *.cmake
+CMakeLists.txt
+cmakebackup.txt
+*.sh
 
 # Compiled Object files
 *.slo
 *.lo
 *.o
 *.obj
-!Objects/*.obj
+!Objects/*/*.obj
 
 # Precompiled Headers
 *.gch
