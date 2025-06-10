@@ -33,6 +33,7 @@ set(SOURCES
     src/Water/Lake.cpp
     src/ObjectLoader/GameObject.cpp
     src/ObjectLoader/GameObjectManager.cpp
+    src/Core/ShadowMap.cpp
 )
 
 # Create executable

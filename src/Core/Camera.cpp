@@ -124,11 +124,11 @@ void Camera::OnKeyboard(int key)
         CameraChangedPos = true;
         break;
 
-    case GLFW_KEY_N:
+    case GLFW_KEY_X:
         m_pos.y += m_speed;
         break;
 
-    case GLFW_KEY_M:
+    case GLFW_KEY_C:
         m_pos.y -= m_speed;
         break;
 

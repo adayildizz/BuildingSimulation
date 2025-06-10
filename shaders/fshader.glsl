@@ -2,7 +2,6 @@
 
 layout(location = 0) out vec4 FragColor;
 
-in vec4 baseColor; // This 'in' is unused in main, but kept for compatibility with existing code
 in vec2 outTexCoord;      // Texture coordinates from vertex shader
 in vec3 outWorldPos;      // World position from vertex shader
 in vec3 outNormal_world;  // World-space normal from vertex shader

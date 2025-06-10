@@ -14,7 +14,7 @@
 
 #include "ObjectLoader/GameObjectManager.h"
 #include "Core/ShadowMap.h"
-#include "Core/AudioManager.h"
+//#include "Core/AudioManager.h"
 
 #include <iostream>
 #include <memory>
@@ -95,7 +95,7 @@ public:
             std::cerr << "Shadow Map initialization failed!" << std::endl;
             // Handle error appropriately
         }
-        AudioManager::getInstance().playMusic("../include/music.mp3");
+        //AudioManager::getInstance().playMusic("../include/music.mp3");
     }
 
     void Run()
@@ -261,7 +261,7 @@ public:
 
         if (objectLoader) {
             mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
-            objectLoader->render();
+            objectLoader->render(*shader);
         }
 
         // --- Render Water ---
@@ -295,7 +295,7 @@ public:
                     // Render objects
                     shader->setUniform("u_isTerrain", false);
                     if (objectLoader) {
-                        objectLoader->render();
+                        objectLoader->render(*shader);
                     }
                 });
 
