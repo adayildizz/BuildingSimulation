@@ -8,10 +8,6 @@ in vec3 outWorldPos;      // World position from vertex shader
 in vec3 outNormal_world;  // World-space normal from vertex shader
 in vec4 outSplatWeights1234; // First 4 splat weights from vertex shader
 in float outSplatWeight5;     // Fifth splat weight from vertex shader
-
-in vec2 outTexCoord;        // Texture coordinates from vertex shader
-in vec3 outWorldPos;        // World position from vertex shader
-in vec3 outNormal_world;    // World-space normal from vertex shader
 in vec4 outWorldPosLightSpace; // NEW: World position from the light's perspective
 
 // Texture samplers for terrain layers - now 5 textures

@@ -36,9 +36,9 @@ float ObjectPosZ = 600.0f;
 
 // Texture painting state
 bool isTexturePainting = false;
-bool isFlattening = false; 
-bool isDigging = false;     
-bool isRaising = false;     // New state for raising terrain
+bool isFlattening = false;
+bool isDigging = false;
+bool isRaising = false;
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
 float brushRadius = 30.0f;  // can be adjusted
 float brushStrength = 10.0f; // can be adjusted
@@ -285,9 +285,9 @@ public:
 
         if (objectLoader) {
             mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
-            objectLoader->render();
+            objectLoader->render(*shader);
         }
-
+/*
         // --- Render Water ---
         if (waterManager) {
             waterManager->renderAll(viewProjMatrix, camera.get(), shader.get(),
@@ -325,7 +325,7 @@ public:
 
                 
         }
-        
+   */     
         // Use raycasting to position objects on terrain
         if (gameObject && gameObject->isInPlacement) {
             vec3 intersectionPoint;
@@ -429,83 +429,8 @@ public:
                     break;
                 case GLFW_KEY_L:  // New key for digging mode
                     isDigging = !isDigging;
-                    if (!isDigging) {  // If we're exiting digging mode
-                        if (!lastDugPoints.empty()) {
-                            // Calculate center and bounding box of dug points
-                            vec3 center(0.0f);
-                            vec3 minPoint(FLT_MAX);
-                            vec3 maxPoint(-FLT_MAX);
-                            
-                            std::cout << "Total dug points in session: " << lastDugPoints.size() << std::endl;
-                            
-                            for (const auto& point : lastDugPoints) {
-                                center += point;
-                                // Update bounding box
-                                minPoint.x = std::min(minPoint.x, point.x);
-                                minPoint.y = std::min(minPoint.y, point.y);
-                                minPoint.z = std::min(minPoint.z, point.z);
-                                maxPoint.x = std::max(maxPoint.x, point.x);
-                                maxPoint.y = std::max(maxPoint.y, point.y);
-                                maxPoint.z = std::max(maxPoint.z, point.z);
-                            }
-                            center /= static_cast<float>(lastDugPoints.size());
-                            
-                            // Calculate the size of the bounding box
-                            float width = maxPoint.x - minPoint.x;
-                            float depth = maxPoint.z - minPoint.z;
-                            float size = std::max(width, depth);
-                            
-                            std::cout << "Digging session bounds:" << std::endl;
-                            std::cout << "  Min point: (" << minPoint.x << ", " << minPoint.y << ", " << minPoint.z << ")" << std::endl;
-                            std::cout << "  Max point: (" << maxPoint.x << ", " << maxPoint.y << ", " << maxPoint.z << ")" << std::endl;
-                            std::cout << "  Center: (" << center.x << ", " << center.y << ", " << center.z << ")" << std::endl;
-                            std::cout << "  Size: " << size << std::endl;
-                            
-                            // Create a small elevation around the dug area
-                            float waterMeshSize = size * 1.2f; // Size of water mesh (with 20% margin)
-                            float embankmentWidth = waterMeshSize * 0.15f; // 15% of water mesh size for embankment
-                            float waterHeight = center.y; // Use the center height as water surface height
-                            float embankmentHeight = 3.0f; // Height of the embankment above water
-                            
-                            // Create embankment by raising terrain in a ring around the dug area
-                            for (float angle = 0; angle < 360.0f; angle += 5.0f) { // 5-degree steps
-                                float rad = angle * M_PI / 180.0f;
-                                float outerRadius = (waterMeshSize * 0.5f) + embankmentWidth; // Outer edge of embankment
-                                float innerRadius = waterMeshSize * 0.5f; // Inner edge of embankment (water mesh edge)
-                                
-                                // Create points along the embankment ring
-                                for (float r = innerRadius; r <= outerRadius; r += 2.0f) {
-                                    float x = center.x + r * cos(rad);
-                                    float z = center.z + r * sin(rad);
-                                    
-                                    // Calculate falloff from inner to outer edge
-                                    float falloff = (r - innerRadius) / embankmentWidth;
-                                    float height = embankmentHeight * (1.0f - falloff);
-                                    
-                                    // Get current terrain height at this point
-                                    float currentHeight = grid->GetHeightAtWorldPos(x, z);
-                                    
-                                    // Only raise if current height is below water level
-                                    if (currentHeight < waterHeight) {
-                                        // Raise to at least water height plus embankment height
-                                        float targetHeight = waterHeight + height;
-                                        float raiseAmount = targetHeight - currentHeight;
-                                        grid->RaiseTerrain(x, z, raiseAmount, embankmentWidth * 0.5f, 1.0f);
-                                    }
-                                }
-                            }
-                            
-                            // Add water at the center with size based on the bounding box
-                            waterManager->addWaterAt(center, waterMeshSize); // Use the same size we used for embankment
-                            
-                            // Clear the dug points for next operation
-                            lastDugPoints.clear();
-                        }
-                    } else {
-                        // Clear points when entering digging mode
-                        lastDugPoints.clear();
-                    }
-
+                    
+                   
                     isTexturePainting = false;  // Disable other modes
                     isFlattening = false;       // Disable other modes
                     std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
@@ -525,8 +450,13 @@ public:
         mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
         mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
+        // Only update camera if we're not in any terrain modification mode
+        if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
+            camera->OnMouse(x, y);
+        }
+        
         // Update texture painting or flattening while dragging
-        if ((isTexturePainting || isFlattening) && 
+        if ((isTexturePainting || isFlattening || isDigging || isRaising) && 
             glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             vec3 intersectionPoint;
             if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
@@ -536,13 +466,18 @@ public:
                 } else if (isFlattening) {
                     grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
                                 brushRadius, brushStrength);
+                } else if (isDigging) {
+                    std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
+                                            brushRadius, brushStrength);
+                    lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
+                } else if (isRaising) {
+                    grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z, 
+                                    brushStrength, brushRadius, 1.0f);
                 }
             }
-        } else {
-            camera->OnMouse(x, y);
         }
 
-         // Handle UI mouse move
+        // Handle UI mouse move
         if (m_uiRenderer) {
             m_uiRenderer->HandleMouseMove(x, y);
         }
@@ -559,53 +494,54 @@ public:
         mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
-            if (action == GLFW_PRESS) {
-                // Get current window size and scale coordinates
-                int currentWidth, currentHeight;
-                glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
-                
-                // Scale coordinates to match camera's expected dimensions
-                mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
-                mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
-                
+            if (state == GLFW_PRESS) {
                 // Check UI first
                 if (m_uiRenderer && m_uiRenderer->HandleMouseClick(x, y)) {
                     return; // UI handled the click, don't process 3D interaction
                 }
-                    
-                camera->UpdateMousePos(x, y);
-                camera->StartRotation();
                 
-                // Handle texture painting
-                if (isTexturePainting) {
-                    vec3 intersectionPoint;
-                    if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                // Only handle camera rotation if we're not in any terrain modification mode
+                if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
+                    camera->UpdateMousePos(x, y);
+                    camera->StartRotation();
+                }
+                
+                vec3 intersectionPoint;
+                if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                    if (isTexturePainting) {
                         grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
                                         currentTextureLayer, brushRadius, brushStrength);
-                    } else if (isFlattening) {
+                    }
+                    if (isFlattening) {
                         grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
                                     brushRadius, brushStrength);
-                    } else if (isDigging) {
+                    }
+                    if (isDigging) {
                         std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
                                                 brushRadius, brushStrength);
                         lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
-                    } else if (isRaising) {
-                        // Raise terrain by the same amount that digging would lower it
+                    }
+                    if (isRaising) {
                         grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z, 
                                         brushStrength, brushRadius, 1.0f);
                     }
                 }
             }
         } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-            // Handle camera rotation
-            if (state == GLFW_PRESS) {
-                camera->StartRotation();
-            } else if (state == GLFW_RELEASE) {
-                camera->StopRotation();
+            // Only handle camera rotation if we're not in any terrain modification mode
+            if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
+                if (state == GLFW_PRESS) {
+                    camera->StartRotation();
+                } else if (state == GLFW_RELEASE) {
+                    camera->StopRotation();
+                }
             }
         }
         
-        camera->OnMouse(x, y);
+        // Only update camera if we're not in any terrain modification mode
+        if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
+            camera->OnMouse(x, y);
+        }
     }
  
     void ResizeCB(int width, int height)
@@ -893,7 +829,7 @@ private:
         // ... etc.
     }
 }
-
+/*
     void InitWater() {
         // Initialize water program
         waterProgram = std::make_shared<Shader>();
@@ -916,7 +852,7 @@ private:
         glEnable(GL_DEPTH_TEST);
     }
 
- 
+ */
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
