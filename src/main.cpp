@@ -10,6 +10,8 @@
 #include "ObjectLoader/ObjectLoader.h"
 #include "Angel.h"
 #include "Core/CelestialLightManager.h"
+#include "Water/WaterManager.h"
+
 #include "ObjectLoader/GameObjectManager.h"
 #include "Core/ShadowMap.h"
 #include "UI/UIRenderer.h"
@@ -34,9 +36,13 @@ float ObjectPosZ = 600.0f;
 
 // Texture painting state
 bool isTexturePainting = false;
+bool isFlattening = false; 
+bool isDigging = false;     
+bool isRaising = false;     // New state for raising terrain
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
-float brushRadius = 15.0f;
-float brushStrength = 2.5f;
+float brushRadius = 30.0f;  // can be adjusted
+float brushStrength = 10.0f; // can be adjusted
+std::vector<vec3> lastDugPoints; // Store all dug points during a digging session
 
 // Constants
 const int WINDOW_WIDTH = 1920;
@@ -47,6 +53,7 @@ const unsigned int SHADOW_WIDTH = 4096, SHADOW_HEIGHT = 4096; // Shadow map reso
 ObjectLoader* objectLoader;
 std::vector<ObjectLoader*> objectLoaders;
 GameObject* gameObject; //SelectedGameObject
+
 
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -69,8 +76,7 @@ std::vector<std::pair<std::string, std::vector<unsigned int>>> objectPaths = {
 
 
 // Grid demo application
-class GridDemo
-{
+class GridDemo {
 public:
     GridDemo() = default;
     ~GridDemo() {
@@ -263,6 +269,62 @@ public:
 
         // --- Render Objects ---
         shader->setUniform("u_isTerrain", false);
+
+        vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ);
+        float scale = 100.0f;
+        float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
+        float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
+        normX *= scale;
+        normY *= scale;
+
+        mat4 translation_from_cursor = Translate(fixedObjectWorldPos.x + normX, fixedObjectWorldPos.y, fixedObjectWorldPos.z + normY);
+        mat4 objectScaleMatrix = Scale(5.0f,5.0f, 5.0f);
+        mat4 objectModelMatrix = translation_from_cursor * objectScaleMatrix;
+
+        shader->setUniform("gModelMatrix", objectModelMatrix);
+
+        if (objectLoader) {
+            mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
+            objectLoader->render();
+        }
+
+        // --- Render Water ---
+        if (waterManager) {
+            waterManager->renderAll(viewProjMatrix, camera.get(), shader.get(),
+                [this](vec4 clipPlane, mat4 viewProjMatrix) {
+                    shader->setUniform("clipPlane", clipPlane);
+
+                    shader->setUniform("gVP", viewProjMatrix);
+                    // Render terrain
+                    shader->setUniform("u_isTerrain", true);
+                    shader->setUniform("gModelMatrix", mat4(1.0f));
+                    if (m_terrainMaterial && shader->isValid()) {
+                        GLuint shaderID = shader->getProgramID();
+                        GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
+                        GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
+                        m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
+                    }
+                    shader->setUniform("gMinHeight", m_minTerrainHeight);
+                    shader->setUniform("gMaxHeight", m_maxTerrainHeight);
+
+                    for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
+                        if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
+                            m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
+                            shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
+                            shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
+                        }
+                    }
+                    grid->Render();
+
+                    // Render objects
+                    shader->setUniform("u_isTerrain", false);
+                    if (objectLoader) {
+                        objectLoader->render();
+                    }
+                });
+
+                
+        }
         
         // Use raycasting to position objects on terrain
         if (gameObject && gameObject->isInPlacement) {
@@ -302,7 +364,28 @@ public:
                     break;
                 case GLFW_KEY_P:
                     isTexturePainting = !isTexturePainting;
+                    isFlattening = false;
+                    isDigging = false;
+                    isRaising = false;
                     std::cout << "Texture painting mode: " << (isTexturePainting ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_F:
+                    isFlattening = !isFlattening;
+                    isTexturePainting = false;
+                    isDigging = false;
+                    isRaising = false;
+                    std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_Z:
+                    isRaising = !isRaising;
+                    isTexturePainting = false;
+                    isFlattening = false;
+                    isDigging = false;
+                    if (isRaising) {
+                        // Store initial heightmap when entering raising mode
+                        grid->StoreInitHeightMap();
+                    }
+                    std::cout << "Raising mode: " << (isRaising ? "ON" : "OFF") << std::endl;
                     break;
                 case GLFW_KEY_1:
                 case GLFW_KEY_2:
@@ -344,7 +427,89 @@ public:
                 case GLFW_KEY_R:
                     gameObject->RotateY(5.0f);
                     break;
-                    
+                case GLFW_KEY_L:  // New key for digging mode
+                    isDigging = !isDigging;
+                    if (!isDigging) {  // If we're exiting digging mode
+                        if (!lastDugPoints.empty()) {
+                            // Calculate center and bounding box of dug points
+                            vec3 center(0.0f);
+                            vec3 minPoint(FLT_MAX);
+                            vec3 maxPoint(-FLT_MAX);
+                            
+                            std::cout << "Total dug points in session: " << lastDugPoints.size() << std::endl;
+                            
+                            for (const auto& point : lastDugPoints) {
+                                center += point;
+                                // Update bounding box
+                                minPoint.x = std::min(minPoint.x, point.x);
+                                minPoint.y = std::min(minPoint.y, point.y);
+                                minPoint.z = std::min(minPoint.z, point.z);
+                                maxPoint.x = std::max(maxPoint.x, point.x);
+                                maxPoint.y = std::max(maxPoint.y, point.y);
+                                maxPoint.z = std::max(maxPoint.z, point.z);
+                            }
+                            center /= static_cast<float>(lastDugPoints.size());
+                            
+                            // Calculate the size of the bounding box
+                            float width = maxPoint.x - minPoint.x;
+                            float depth = maxPoint.z - minPoint.z;
+                            float size = std::max(width, depth);
+                            
+                            std::cout << "Digging session bounds:" << std::endl;
+                            std::cout << "  Min point: (" << minPoint.x << ", " << minPoint.y << ", " << minPoint.z << ")" << std::endl;
+                            std::cout << "  Max point: (" << maxPoint.x << ", " << maxPoint.y << ", " << maxPoint.z << ")" << std::endl;
+                            std::cout << "  Center: (" << center.x << ", " << center.y << ", " << center.z << ")" << std::endl;
+                            std::cout << "  Size: " << size << std::endl;
+                            
+                            // Create a small elevation around the dug area
+                            float waterMeshSize = size * 1.2f; // Size of water mesh (with 20% margin)
+                            float embankmentWidth = waterMeshSize * 0.15f; // 15% of water mesh size for embankment
+                            float waterHeight = center.y; // Use the center height as water surface height
+                            float embankmentHeight = 3.0f; // Height of the embankment above water
+                            
+                            // Create embankment by raising terrain in a ring around the dug area
+                            for (float angle = 0; angle < 360.0f; angle += 5.0f) { // 5-degree steps
+                                float rad = angle * M_PI / 180.0f;
+                                float outerRadius = (waterMeshSize * 0.5f) + embankmentWidth; // Outer edge of embankment
+                                float innerRadius = waterMeshSize * 0.5f; // Inner edge of embankment (water mesh edge)
+                                
+                                // Create points along the embankment ring
+                                for (float r = innerRadius; r <= outerRadius; r += 2.0f) {
+                                    float x = center.x + r * cos(rad);
+                                    float z = center.z + r * sin(rad);
+                                    
+                                    // Calculate falloff from inner to outer edge
+                                    float falloff = (r - innerRadius) / embankmentWidth;
+                                    float height = embankmentHeight * (1.0f - falloff);
+                                    
+                                    // Get current terrain height at this point
+                                    float currentHeight = grid->GetHeightAtWorldPos(x, z);
+                                    
+                                    // Only raise if current height is below water level
+                                    if (currentHeight < waterHeight) {
+                                        // Raise to at least water height plus embankment height
+                                        float targetHeight = waterHeight + height;
+                                        float raiseAmount = targetHeight - currentHeight;
+                                        grid->RaiseTerrain(x, z, raiseAmount, embankmentWidth * 0.5f, 1.0f);
+                                    }
+                                }
+                            }
+                            
+                            // Add water at the center with size based on the bounding box
+                            waterManager->addWaterAt(center, waterMeshSize); // Use the same size we used for embankment
+                            
+                            // Clear the dug points for next operation
+                            lastDugPoints.clear();
+                        }
+                    } else {
+                        // Clear points when entering digging mode
+                        lastDugPoints.clear();
+                    }
+
+                    isTexturePainting = false;  // Disable other modes
+                    isFlattening = false;       // Disable other modes
+                    std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
+                    break;
             }
         }
         camera->OnKeyboard(key);
@@ -360,12 +525,18 @@ public:
         mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
         mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
-        // Update texture painting while dragging
-        if (isTexturePainting && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        // Update texture painting or flattening while dragging
+        if ((isTexturePainting || isFlattening) && 
+            glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             vec3 intersectionPoint;
             if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
-                                currentTextureLayer, brushRadius, brushStrength);
+                if (isTexturePainting) {
+                    grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                    currentTextureLayer, brushRadius, brushStrength);
+                } else if (isFlattening) {
+                    grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
+                                brushRadius, brushStrength);
+                }
             }
         } else {
             camera->OnMouse(x, y);
@@ -377,8 +548,16 @@ public:
         }
     }
 
-    void MouseCB(int button, int action, int x, int y)
+    void MouseCB(int button, int state, int x, int y)
     {
+        // Get current window size
+        int currentWidth, currentHeight;
+        glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
+        
+        // Store raw coordinates but scale them to match camera's expected dimensions
+        mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
+        mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
+        
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
                 // Get current window size and scale coordinates
@@ -403,17 +582,30 @@ public:
                     if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
                         grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
                                         currentTextureLayer, brushRadius, brushStrength);
+                    } else if (isFlattening) {
+                        grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
+                                    brushRadius, brushStrength);
+                    } else if (isDigging) {
+                        std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
+                                                brushRadius, brushStrength);
+                        lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
+                    } else if (isRaising) {
+                        // Raise terrain by the same amount that digging would lower it
+                        grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z, 
+                                        brushStrength, brushRadius, 1.0f);
                     }
                 }
-                
-                // Only finalize object placement if there's an object in placement mode
-                if (gameObject && gameObject->isInPlacement) {
-                    gameObject->isInPlacement = false;
-                }
-            } else if (action == GLFW_RELEASE) {
+            }
+        } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+            // Handle camera rotation
+            if (state == GLFW_PRESS) {
+                camera->StartRotation();
+            } else if (state == GLFW_RELEASE) {
                 camera->StopRotation();
             }
         }
+        
+        camera->OnMouse(x, y);
     }
  
     void ResizeCB(int width, int height)
@@ -426,7 +618,8 @@ private:
     {
         window = std::make_unique<Window>(WINDOW_WIDTH, WINDOW_HEIGHT, "Unified Shader Demo");
     }
-
+   
+    
     void InitCallbacks()
     {
         glfwSetKeyCallback(window->getHandle(), KeyCallback);
@@ -691,6 +884,39 @@ private:
         }
     }
 
+    void CheckGLError(const std::string& location) {
+    GLenum error = glGetError();
+    if (error != GL_NO_ERROR) {
+        std::cerr << "OpenGL Error at " << location << ": " << std::hex << error << std::dec << std::endl;
+        // You can add more detailed error string mappings if you want, e.g.:
+        // if (error == GL_INVALID_ENUM) std::cerr << "GL_INVALID_ENUM" << std::endl;
+        // ... etc.
+    }
+}
+
+    void InitWater() {
+        // Initialize water program
+        waterProgram = std::make_shared<Shader>();
+        if (!waterProgram->loadFromFiles("shaders/water_vert.glsl", "shaders/water_frag.glsl")) {
+            std::cerr << "Failed to load water shaders" << std::endl;
+            return;
+        }
+
+        // Create water manager
+        waterManager = std::make_unique<WaterManager>(waterProgram, WINDOW_WIDTH, WINDOW_HEIGHT);
+        
+        // Add three water instances at different locations
+        // First water - near the center
+        waterManager->addWaterAt(vec3(400.0f, 100.0f, 800.0f), 150.0f);
+        CheckGLError("After first addWaterAt call in InitWater");
+
+        waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
+        CheckGLError("After second addWaterAt call in InitWater");
+        
+        glEnable(GL_DEPTH_TEST);
+    }
+
+ 
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
@@ -706,8 +932,9 @@ private:
     std::vector<float> m_terrainTextureTransitionHeights;
     std::unique_ptr<UIRenderer> m_uiRenderer;
     std::shared_ptr<UIDropdownMenu> m_objectMenu, m_objectMenu2;
-    static const int MAX_SHADER_TEXTURE_LAYERS = 4;
+    static const int MAX_SHADER_TEXTURE_LAYERS = 5;
 };
+
 
 GridDemo* g_app = nullptr;
 

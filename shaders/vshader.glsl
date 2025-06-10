@@ -11,7 +11,12 @@ uniform mat4 gVP;          // Combined View * Projection matrix
 uniform mat4 gModelMatrix; // Model matrix (transforms model to world space)
 uniform mat4 gLightSpaceMatrix; // NEW: Transforms world to light space
 
-out vec4 baseColor;
+
+uniform vec4 clipPlane; 
+
+
+
+out vec4 baseColor; // This 'out' is unused in main, but kept for compatibility with existing code
 out vec2 outTexCoord;      // Pass texture coordinates to fragment shader
 out vec3 outWorldPos;      // Pass world position to fragment shader
 out vec3 outNormal_world;  // Pass normal (in world space) to fragment shader
@@ -23,6 +28,7 @@ out vec4 outWorldPosLightSpace; // NEW: Pass light-space position to fragment sh
 
 void main()
 {
+    
     // Transform vertex position to world space
     vec4 worldPos_vec4 = gModelMatrix * vPosition; // Use vPosition directly
     outWorldPos = worldPos_vec4.xyz;
