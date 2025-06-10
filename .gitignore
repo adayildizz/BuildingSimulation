@@ -28,6 +28,8 @@ cmake_install.cmake
 Makefile
 *.cmake
 CMakeLists.txt
+cmakebackup.txt
+*.sh
 
 # Compiled Object files
 *.slo
