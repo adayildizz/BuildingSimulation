@@ -28,6 +28,9 @@ cmake_install.cmake
 Makefile
 *.cmake
 
+# Keep CMakeLists.txt local only (contains system-specific paths)
+CMakeLists.txt
+
 # Compiled Object files
 *.slo
 *.lo
