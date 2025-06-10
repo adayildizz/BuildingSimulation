@@ -21,6 +21,8 @@ public:
 
     // Camera control
     void OnKeyboard(int key);
+    void OnKeyboardStateChange(int key, int action); // New method for tracking key states
+    void UpdateMovement(float deltaTime); // New method for smooth movement updates
     void OnMouse(int x, int y);
     void UpdateMousePos(int x, int y);
     
@@ -121,4 +123,12 @@ private:
 
     vec2 m_mousePos = vec2(0.0f, 0.0f);
     bool m_isRotating = false;
+    
+    // Key state tracking for smooth movement
+    bool m_keyStates[512] = {false}; // Track state of all keys (GLFW key codes)
+    
+    // Smooth movement variables
+    vec3 m_velocity = vec3(0.0f); // Current velocity for smooth acceleration/deceleration
+    float m_acceleration = 20.0f; // Acceleration rate
+    float m_deceleration = 10.0f; // Deceleration rate when no keys pressed
 };

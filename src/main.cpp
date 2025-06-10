@@ -16,6 +16,7 @@
 #include "UI/UIRenderer.h"
 #include "UI/UIButton.h"
 #include "UI/UIDropdownMenu.h"
+#include "Core/ObjectConfig.h"
 
 #include <iostream>
 #include <memory>
@@ -61,12 +62,8 @@ std::shared_ptr<Shader> shader;
 std::shared_ptr<Shader> m_shadowShader; // Pointer for the shadow shader
 GameObjectManager* objectManager;
 
-//CONSTANTS
-std::vector<std::pair<std::string, std::vector<unsigned int>>> objectPaths = {
-    {"../Objects/Cottage/cottage_obj.obj", {}},
-    {"../Objects/Tree/Tree1.obj", {0}},
-    {"../Objects/Cat/cat.obj", {}}
-};
+// Object configurations loaded from file
+std::vector<ObjectConfig> objectConfigs;
 
 
 // Grid demo application
@@ -111,6 +108,11 @@ public:
             double currentFrameTime = glfwGetTime();
             float deltaTime = static_cast<float>(currentFrameTime - lastFrameTime);
             lastFrameTime = currentFrameTime;
+
+            // Update camera movement (smooth movement)
+            if (camera) {
+                camera->UpdateMovement(deltaTime);
+            }
 
             // Update the CelestialLightManager
             if (m_celestialLightManager) {
@@ -343,12 +345,19 @@ public:
                     break;
                 };
                 case GLFW_KEY_R:
-                    gameObject->RotateY(5.0f);
+                    gameObject->RotateY(15.0f);
                     break;
                     
             }
         }
-        camera->OnKeyboard(key);
+        
+        // Handle camera movement keys with new smooth movement system
+        camera->OnKeyboardStateChange(key, action);
+        
+        // Keep existing OnKeyboard for non-movement keys (speed adjustment, etc.)
+        if (action == GLFW_PRESS) {
+            camera->OnKeyboard(key);
+        }
     }
 
     void PassiveMouseCB(int x, int y)
@@ -438,23 +447,21 @@ private:
     }
 
     void InitObjects(){
-        std::cout << "loading objects.." << std::endl;
-        objectManager = new GameObjectManager();
-        for(int i = 0; i<3;i++){
-            
-        }
-        for(int i = 0; i<3;i++){
-            ObjectLoader* objectLoader = new ObjectLoader(*shader);
-            objectLoader->load(objectPaths[i].first, objectPaths[i].second); 
-            objectLoaders.push_back(objectLoader);
-        }
+        std::cout << "Loading object configurations..." << std::endl;
         
-       
-        /**int objectIndex = objectManager->CreateNewObject(*objectLoader);
-        gameObject = objectManager->GetGameObject(objectIndex);
-        gameObject->Scale(5.0f);
-        gameObject->isInPlacement = true; // Initially placed
-        */
+        // Load object configurations from file
+        objectConfigs = loadObjectConfigs("../ObjectPaths.txt");
+        std::cout << "Loaded " << objectConfigs.size() << " object configurations" << std::endl;
+        
+        objectManager = new GameObjectManager();
+        
+        // Load all objects into objectLoaders
+        for(const auto& config : objectConfigs){
+            ObjectLoader* objectLoader = new ObjectLoader(*shader);
+            objectLoader->load(config.filepath, config.intVector); 
+            objectLoaders.push_back(objectLoader);
+            std::cout << "Loaded object: " << config.displayName << " from " << config.filepath << std::endl;
+        }
     }
 
     void InitCamera()
@@ -566,49 +573,36 @@ private:
             isTexturePainting = true;
             currentTextureLayer = 1;
         },"resources/icons/dirt.jpg");
-        // Add menu items for different objects
-        m_objectMenu->AddMenuItem("Cat", [this]() {
-            std::cout << "Loading Cat..." << std::endl;
-            //ObjectLoader* obj = new ObjectLoader(*shader);
-            //obj->load("../Objects/Cat/cat.obj", {0});
-            int index = objectManager->CreateNewObject(*objectLoaders[2]);
-            GameObject* newGameObject = objectManager->GetGameObject(index);
-            if (newGameObject) {
-                newGameObject->Scale(0.7f);
-                newGameObject->RotateX(-90.0f);
-                newGameObject->isInPlacement = true;
-                gameObject = newGameObject;
-            }
-            isTexturePainting = false;
-        }, "resources/icons/cat.png");
+        m_objectMenu2->AddMenuItem("Sand", [this]() {
+            std::cout << "Painting Dirt terrain..." << std::endl;
+            // You can add terrain modification logic here later
+            isTexturePainting = true;
+            currentTextureLayer = 4;
+        },"resources/icons/sand.jpg");
+
+
         
-        m_objectMenu->AddMenuItem("Tree", [this]() {
-            std::cout << "Loading Tree..." << std::endl;
-            //ObjectLoader* obj = new ObjectLoader(*shader);
-            //obj->load("../Objects/Tree/Tree1.obj", {0});
-            int index = objectManager->CreateNewObject(*objectLoaders[1]);
-            GameObject* newGameObject = objectManager->GetGameObject(index);
-            if (newGameObject) {
-                newGameObject->Scale(10.0f);
-                newGameObject->isInPlacement = true;
-                gameObject = newGameObject;
-            }
-            isTexturePainting = false;
-        }, "resources/icons/tree.png");
-        
-        m_objectMenu->AddMenuItem("Cottage", [this]() {
-            std::cout << "Loading Cottage..." << std::endl;
-            //ObjectLoader* obj = new ObjectLoader(*shader);
-            //obj->load("../Objects/Cottage/cottage_obj.obj");
-            int index = objectManager->CreateNewObject(*objectLoaders[0]);
-            GameObject* newGameObject = objectManager->GetGameObject(index);
-            if (newGameObject) {
-                newGameObject->Scale(5.0f);
-                newGameObject->isInPlacement = true;
-                gameObject = newGameObject;
-            }
-            isTexturePainting = false;
-        },"resources/icons/cottage.png");
+        // Automatically add menu items for different objects from config
+        for(size_t i = 0; i < objectConfigs.size(); ++i) {
+            const auto& config = objectConfigs[i];
+            
+            m_objectMenu->AddMenuItem(config.displayName, [this, i]() {
+                const auto& config = objectConfigs[i];
+                std::cout << "Loading " << config.displayName << "..." << std::endl;
+                
+                int index = objectManager->CreateNewObject(*objectLoaders[i]);
+                GameObject* newGameObject = objectManager->GetGameObject(index);
+                if (newGameObject) {
+                    newGameObject->Scale(config.scale);
+                    if (config.rotX != 0.0f) newGameObject->RotateX(config.rotX);
+                    if (config.rotY != 0.0f) newGameObject->RotateY(config.rotY);
+                    if (config.rotZ != 0.0f) newGameObject->RotateZ(config.rotZ);
+                    newGameObject->isInPlacement = true;
+                    gameObject = newGameObject;
+                }
+                isTexturePainting = false;
+            }, config.iconPath);
+        }
         
         // Set button callback to toggle menu
         menuButton->SetOnClickCallback([this]() {

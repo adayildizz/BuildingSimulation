@@ -77,61 +77,9 @@ void Camera::OnRender()
 
 void Camera::OnKeyboard(int key)
 {
-    bool CameraChangedPos = false;
-
+    // This method now only handles non-movement keys
+    // Movement keys are handled by UpdateMovement() for smooth movement
     switch (key) {
-    case GLFW_KEY_W:
-        m_pos += (m_target * m_speed);
-        break;
-
-    case GLFW_KEY_S:
-        m_pos -= (m_target * m_speed);
-        break;
-
-    case GLFW_KEY_A:
-        {
-            vec3 Right = cross(m_up, m_target);
-            Right = normalize(Right);
-            m_pos += (Right * m_speed);
-        }
-        break;
-
-    case GLFW_KEY_D:
-        {
-            vec3 Left = cross(m_target, m_up);
-            Left = normalize(Left);
-            m_pos += (Left * m_speed);
-        }
-        break;
-
-    case GLFW_KEY_DOWN:
-        m_angleV += m_speed;
-        CameraChangedPos = true;
-        break;
-
-    case GLFW_KEY_UP:
-        m_angleV -= m_speed;
-        CameraChangedPos = true;
-        break;
-
-    case GLFW_KEY_LEFT:
-        m_angleH += m_speed;
-        CameraChangedPos = true;
-        break;
-
-    case GLFW_KEY_RIGHT:
-        m_angleH -= m_speed;
-        CameraChangedPos = true;
-        break;
-
-    case GLFW_KEY_N:
-        m_pos.y += m_speed;
-        break;
-
-    case GLFW_KEY_M:
-        m_pos.y -= m_speed;
-        break;
-
     case GLFW_KEY_I:
         m_speed += 1.0f;
         std::cout << "Speed changed to " << m_speed << std::endl;
@@ -145,10 +93,78 @@ void Camera::OnKeyboard(int key)
         std::cout << "Speed changed to " << m_speed << std::endl;
         break;
     }
+}
 
-    // Need to update camera vectors if rotation angles have changed
+void Camera::OnKeyboardStateChange(int key, int action)
+{
+    // Track key press/release states for smooth movement
+    if (key >= 0 && key < 512) {
+        m_keyStates[key] = (action == GLFW_PRESS || action == GLFW_REPEAT);
+    }
+}
+
+void Camera::UpdateMovement(float deltaTime)
+{
+    bool CameraChangedPos = false;
+    vec3 moveDirection = vec3(0.0f);
+    
+    // Calculate movement based on currently pressed keys
+    float frameSpeed = m_speed * deltaTime * 15.0f; // Even slower movement for better control
+    
+    // Forward/Backward movement (W/S)
+    if (m_keyStates[GLFW_KEY_W]) {
+        moveDirection += m_target * frameSpeed;
+    }
+    if (m_keyStates[GLFW_KEY_S]) {
+        moveDirection -= m_target * frameSpeed;
+    }
+    
+    // Strafe movement (A/D)
+    if (m_keyStates[GLFW_KEY_A]) {
+        vec3 Right = cross(m_up, m_target);
+        Right = normalize(Right);
+        moveDirection += Right * frameSpeed;
+    }
+    if (m_keyStates[GLFW_KEY_D]) {
+        vec3 Left = cross(m_target, m_up);
+        Left = normalize(Left);
+        moveDirection += Left * frameSpeed;
+    }
+    
+    // Vertical movement (N/M)
+    if (m_keyStates[GLFW_KEY_N]) {
+        moveDirection.y += frameSpeed;
+    }
+    if (m_keyStates[GLFW_KEY_M]) {
+        moveDirection.y -= frameSpeed;
+    }
+    
+    // Apply movement
+    if (length(moveDirection) > 0.0f) {
+        m_pos += moveDirection;
+    }
+    
+    // Rotation with arrow keys
+    if (m_keyStates[GLFW_KEY_UP]) {
+        m_angleV -= frameSpeed;
+        CameraChangedPos = true;
+    }
+    if (m_keyStates[GLFW_KEY_DOWN]) {
+        m_angleV += frameSpeed;
+        CameraChangedPos = true;
+    }
+    if (m_keyStates[GLFW_KEY_LEFT]) {
+        m_angleH += frameSpeed;
+        CameraChangedPos = true;
+    }
+    if (m_keyStates[GLFW_KEY_RIGHT]) {
+        m_angleH -= frameSpeed;
+        CameraChangedPos = true;
+    }
+    
+    // Update camera vectors if rotation angles have changed
     if (CameraChangedPos) {
-        Update();
+        Update();  // This calls the existing Update() method that updates camera vectors
     }
 }
 
