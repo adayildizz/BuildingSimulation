@@ -8,8 +8,7 @@
 #include <random>     // Added for std::mt19937 and std::uniform_real_distribution
 #include <algorithm>  // Added for std::min/max
 
-TerrainGrid::TerrainGrid() : BaseGrid(), m_terrainType(TerrainType::FLAT), m_minHeight(0.0f), m_maxHeight(0.0f),
-    m_flattenTargetHeight(0.0f), m_isFirstFlattenClick(true)
+TerrainGrid::TerrainGrid() : BaseGrid(), m_terrainType(TerrainType::FLAT), m_minHeight(0.0f), m_maxHeight(0.0f) 
 {
     // m_layerInfo will be default constructed, then set in Init
 }
@@ -170,117 +169,6 @@ void TerrainGrid::PaintTexture(float worldX, float worldZ, int textureLayer, flo
     UpdateMesh();
 }
 
-std::vector<std::pair<int, int>> TerrainGrid::Flatten(float worldX, float worldZ, float brushRadius, float brushStrength)
-{
-    // Clear previous flattened points
-    m_lastFlattenedPoints.clear();
-    
-    // Convert world coordinates to grid coordinates
-    int centerX = static_cast<int>(worldX / m_worldScale);
-    int centerZ = static_cast<int>(worldZ / m_worldScale);
-    
-    // Calculate brush radius in grid units
-    int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
-    
-    // Get the target height from the clicked point
-    float targetHeight = GetHeight(centerX, centerZ);
-    
-    // Iterate over the brush area
-    for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
-        for (int x = centerX - radiusInGrid; x <= centerX + radiusInGrid; x++) {
-            // Skip if outside grid bounds
-            if (x < 0 || x >= m_width || z < 0 || z >= m_depth) continue;
-            
-            // Calculate distance from brush center
-            float dx = (x - centerX) * m_worldScale;
-            float dz = (z - centerZ) * m_worldScale;
-            float distance = sqrt(dx * dx + dz * dz);
-            
-            // Skip if outside brush radius
-            if (distance > brushRadius) continue;
-            
-            // Calculate falloff based on distance
-            float falloff = 1.0f - (distance / brushRadius);
-            
-            // Get current height
-            float currentHeight = GetHeight(x, z);
-            
-            // Calculate new height - interpolate between current height and target height based on falloff
-            float newHeight = currentHeight + (targetHeight - currentHeight) * falloff;
-            
-            // Update height in heightmap
-            m_heightMap[z * m_width + x] = newHeight;
-            
-            // Add to altered points
-            m_lastFlattenedPoints.push_back({x, z});
-        }
-    }
-    
-    CalculateMinMaxHeights();
-    UpdateMesh();
-    
-    return m_lastFlattenedPoints;
-}
-
-std::vector<vec3> TerrainGrid::Dig(float worldX, float worldZ, float brushRadius, float brushStrength)
-{
-    std::vector<vec3> dugPoints; 
-    
-    // Convert world coordinates to grid coordinates
-    int centerX = static_cast<int>(worldX / m_worldScale);
-    int centerZ = static_cast<int>(worldZ / m_worldScale);
-    
-    // Calculate brush radius in grid units
-    int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
-    
-    // Iterate over the brush area
-    for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
-        for (int x = centerX - radiusInGrid; x <= centerX + radiusInGrid; x++) {
-            // Skip if outside grid bounds
-            if (x < 0 || x >= m_width || z < 0 || z >= m_depth) continue;
-            
-            // Calculate distance from brush center
-            float dx = (x - centerX) * m_worldScale;
-            float dz = (z - centerZ) * m_worldScale;
-            float distance = sqrt(dx * dx + dz * dz);
-            
-            // Skip if outside brush radius
-            if (distance > brushRadius) continue;
-            
-            // Calculate falloff based on distance - using quadratic falloff for bowl shape
-            float normalizedDistance = distance / brushRadius;
-            float falloff = (1.0f - normalizedDistance * normalizedDistance);
-            
-            // Get current height
-            float currentHeight = GetHeight(x, z);
-            
-            // Calculate new height - create bowl shape by lowering height more at center
-            float depth = brushStrength * falloff;
-            float newHeight = currentHeight - depth;
-            
-            // Update height in heightmap
-            m_heightMap[z * m_width + x] = newHeight;
-            
-            // Store the point that was dug (in world coordinates)
-            vec3 dugPoint(x * m_worldScale, newHeight, z * m_worldScale);
-            dugPoints.push_back(dugPoint);
-        }
-    }
-    
-    // Update min/max heights
-    CalculateMinMaxHeights();
-    
-    // Update the mesh to reflect changes
-    UpdateMesh();
-    
-    return dugPoints;
-}
-
-void TerrainGrid::ResetFlatteningState()
-{
-    m_isFirstFlattenClick = true;
-}
-
 void TerrainGrid::NormalizeSplatWeights(int x, int z)
 {
     int vertexIndex = z * m_width + x;
@@ -302,83 +190,6 @@ void TerrainGrid::NormalizeSplatWeights(int x, int z)
 
 void TerrainGrid::UpdateMesh()
 {
-    // Update vertex positions based on new heights
-    for (int z = 0; z < m_depth; z++) {
-        for (int x = 0; x < m_width; x++) {
-            int vertexIndex = z * m_width + x;
-            auto& vertex = m_gridMesh->GetVertex(vertexIndex);
-            
-            // Update position with new height
-            float y = m_heightMap[vertexIndex];
-            vertex.position = vec3(x * m_worldScale, y, z * m_worldScale);
-        }
-    }
-    
-    // Recalculate normals after height changes
-    m_gridMesh->CalculateNormals(this, m_gridMesh->GetVertices());
-    
-    // Update the vertex buffer on the GPU
+    // Update the vertex buffer with new splat weights
     m_gridMesh->UpdateVertexBuffer();
-}
-
-void TerrainGrid::RaiseTerrain(float worldX, float worldZ, float height, float brushRadius, float brushStrength)
-{
-    // Convert world coordinates to grid coordinates
-    int centerX = static_cast<int>(worldX / m_worldScale);
-    int centerZ = static_cast<int>(worldZ / m_worldScale);
-    
-    // Calculate brush radius in grid units
-    int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
-    
-    // Get the maximum allowed height from the initial heightmap
-    float maxAllowedHeight = 0.0f;
-    for (float h : m_initHeightMap) {
-        maxAllowedHeight = std::max(maxAllowedHeight, h);
-    }
-    maxAllowedHeight *= 1.2f; // Allow 20% above original max height
-    
-    // Iterate over the brush area
-    for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
-        for (int x = centerX - radiusInGrid; x <= centerX + radiusInGrid; x++) {
-            // Skip if outside grid bounds
-            if (x < 0 || x >= m_width || z < 0 || z >= m_depth) continue;
-            
-            // Calculate distance from brush center
-            float dx = (x - centerX) * m_worldScale;
-            float dz = (z - centerZ) * m_worldScale;
-            float distance = sqrt(dx * dx + dz * dz);
-            
-            // Skip if outside brush radius
-            if (distance > brushRadius) continue;
-            
-            // Calculate falloff based on distance - using quadratic falloff for bowl shape
-            float normalizedDistance = distance / brushRadius;
-            float falloff = (1.0f - normalizedDistance * normalizedDistance);
-            
-            // Get current height
-            float currentHeight = GetHeight(x, z);
-            
-            // Calculate new height - create dome shape by raising height more at center
-            float raiseAmount = (height) * falloff; // Reduced sensitivity by 70%
-            float newHeight = currentHeight + raiseAmount;
-            
-            // Clamp the new height to not exceed maxAllowedHeight
-            newHeight = std::min(newHeight, maxAllowedHeight);
-            
-            // Update height in heightmap
-            m_heightMap[z * m_width + x] = newHeight;
-        }
-    }
-    
-    // Update min/max heights
-    CalculateMinMaxHeights();
-    
-    // Update the mesh to reflect changes
-    UpdateMesh();
-}
-
-void TerrainGrid::StoreInitHeightMap()
-{
-    // Store a copy of the current heightmap
-    m_initHeightMap = m_heightMap;
 }

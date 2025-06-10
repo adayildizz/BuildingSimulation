@@ -315,11 +315,6 @@ mat4 Camera::GetViewPortMatrix() const
     return viewport;
 }
 
-void Camera::invertPitch() {
-    m_pos.x = -m_pos.x;
-    Update();
-}
-
 // Helper function to invert a 4x4 matrix
 mat4 Camera::InvertMatrix(const mat4& m) const
 {

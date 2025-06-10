@@ -10,10 +10,9 @@
 #include "ObjectLoader/ObjectLoader.h"
 #include "Angel.h"
 #include "Core/CelestialLightManager.h"
-#include "Water/WaterManager.h"
-#include "Audio/AudioManager.h"
 #include "ObjectLoader/GameObjectManager.h"
 #include "Core/ShadowMap.h"
+#include "Core/AudioManager.h"
 #include "UI/UIRenderer.h"
 #include "UI/UIButton.h"
 #include "UI/UIDropdownMenu.h"
@@ -36,13 +35,9 @@ float ObjectPosZ = 600.0f;
 
 // Texture painting state
 bool isTexturePainting = false;
-bool isFlattening = false;
-bool isDigging = false;
-bool isRaising = false;
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
-float brushRadius = 30.0f;  // can be adjusted
-float brushStrength = 10.0f; // can be adjusted
-std::vector<vec3> lastDugPoints; // Store all dug points during a digging session
+float brushRadius = 15.0f;
+float brushStrength = 2.5f;
 
 // Constants
 const int WINDOW_WIDTH = 1920;
@@ -53,7 +48,6 @@ const unsigned int SHADOW_WIDTH = 4096, SHADOW_HEIGHT = 4096; // Shadow map reso
 ObjectLoader* objectLoader;
 std::vector<ObjectLoader*> objectLoaders;
 GameObject* gameObject; //SelectedGameObject
-
 
 // Forward declarations of callback functions
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
@@ -76,7 +70,8 @@ std::vector<std::pair<std::string, std::vector<unsigned int>>> objectPaths = {
 
 
 // Grid demo application
-class GridDemo {
+class GridDemo
+{
 public:
     GridDemo() = default;
     ~GridDemo() {
@@ -269,63 +264,7 @@ public:
 
         // --- Render Objects ---
         shader->setUniform("u_isTerrain", false);
-
-        vec3 fixedObjectWorldPos = vec3(objectPosX, ObjectPosY, ObjectPosZ);
-        float scale = 100.0f;
-        float normX = (mouseX / WINDOW_WIDTH) * 2.0f - 1.0f;
-        float normY = 1.0f - (mouseY / WINDOW_HEIGHT) * 2.0f;
-        normX *= scale;
-        normY *= scale;
-
-        mat4 translation_from_cursor = Translate(fixedObjectWorldPos.x + normX, fixedObjectWorldPos.y, fixedObjectWorldPos.z + normY);
-        mat4 objectScaleMatrix = Scale(5.0f,5.0f, 5.0f);
-        mat4 objectModelMatrix = translation_from_cursor * objectScaleMatrix;
-
-        shader->setUniform("gModelMatrix", objectModelMatrix);
-
-        if (objectLoader) {
-            mat4 mvpMatrix = viewProjMatrix * objectModelMatrix;
-            objectLoader->render(*shader);
-        }
-/*
-        // --- Render Water ---
-        if (waterManager) {
-            waterManager->renderAll(viewProjMatrix, camera.get(), shader.get(),
-                [this](vec4 clipPlane, mat4 viewProjMatrix) {
-                    shader->setUniform("clipPlane", clipPlane);
-
-                    shader->setUniform("gVP", viewProjMatrix);
-                    // Render terrain
-                    shader->setUniform("u_isTerrain", true);
-                    shader->setUniform("gModelMatrix", mat4(1.0f));
-                    if (m_terrainMaterial && shader->isValid()) {
-                        GLuint shaderID = shader->getProgramID();
-                        GLint specularIntensityLoc = glGetUniformLocation(shaderID, "material.specularIntensity");
-                        GLint shininessLoc = glGetUniformLocation(shaderID, "material.shininess");
-                        m_terrainMaterial->UseMaterial(specularIntensityLoc, shininessLoc);
-                    }
-                    shader->setUniform("gMinHeight", m_minTerrainHeight);
-                    shader->setUniform("gMaxHeight", m_maxTerrainHeight);
-
-                    for (size_t i = 0; i < m_terrainTextures.size(); ++i) {
-                        if (m_terrainTextures[i] && i < MAX_SHADER_TEXTURE_LAYERS) {
-                            m_terrainTextures[i]->Bind(GL_TEXTURE0 + static_cast<GLenum>(i));
-                            shader->setUniform("gTextureHeight" + std::to_string(i), static_cast<int>(i));
-                            shader->setUniform("gHeight" + std::to_string(i), m_terrainTextureTransitionHeights[i]);
-                        }
-                    }
-                    grid->Render();
-
-                    // Render objects
-                    shader->setUniform("u_isTerrain", false);
-                    if (objectLoader) {
-                        objectLoader->render();
-                    }
-                });
-
-                
-        }
-   */     
+        
         // Use raycasting to position objects on terrain
         if (gameObject && gameObject->isInPlacement) {
             vec3 intersectionPoint;
@@ -364,28 +303,7 @@ public:
                     break;
                 case GLFW_KEY_P:
                     isTexturePainting = !isTexturePainting;
-                    isFlattening = false;
-                    isDigging = false;
-                    isRaising = false;
                     std::cout << "Texture painting mode: " << (isTexturePainting ? "ON" : "OFF") << std::endl;
-                    break;
-                case GLFW_KEY_F:
-                    isFlattening = !isFlattening;
-                    isTexturePainting = false;
-                    isDigging = false;
-                    isRaising = false;
-                    std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
-                    break;
-                case GLFW_KEY_Z:
-                    isRaising = !isRaising;
-                    isTexturePainting = false;
-                    isFlattening = false;
-                    isDigging = false;
-                    if (isRaising) {
-                        // Store initial heightmap when entering raising mode
-                        grid->StoreInitHeightMap();
-                    }
-                    std::cout << "Raising mode: " << (isRaising ? "ON" : "OFF") << std::endl;
                     break;
                 case GLFW_KEY_1:
                 case GLFW_KEY_2:
@@ -427,14 +345,7 @@ public:
                 case GLFW_KEY_R:
                     gameObject->RotateY(5.0f);
                     break;
-                case GLFW_KEY_L:  // New key for digging mode
-                    isDigging = !isDigging;
                     
-                   
-                    isTexturePainting = false;  // Disable other modes
-                    isFlattening = false;       // Disable other modes
-                    std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
-                    break;
             }
         }
         camera->OnKeyboard(key);
@@ -450,97 +361,59 @@ public:
         mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
         mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
-        // Only update camera if we're not in any terrain modification mode
-        if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
-            camera->OnMouse(x, y);
-        }
-        
-        // Update texture painting or flattening while dragging
-        if ((isTexturePainting || isFlattening || isDigging || isRaising) && 
-            glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+        // Update texture painting while dragging
+        if (isTexturePainting && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             vec3 intersectionPoint;
             if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                if (isTexturePainting) {
-                    grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
-                                    currentTextureLayer, brushRadius, brushStrength);
-                } else if (isFlattening) {
-                    grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
-                                brushRadius, brushStrength);
-                } else if (isDigging) {
-                    std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
-                                            brushRadius, brushStrength);
-                    lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
-                } else if (isRaising) {
-                    grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z, 
-                                    brushStrength, brushRadius, 1.0f);
-                }
+                grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
+                                currentTextureLayer, brushRadius, brushStrength);
             }
+        } else {
+            camera->OnMouse(x, y);
         }
 
-        // Handle UI mouse move
+         // Handle UI mouse move
         if (m_uiRenderer) {
             m_uiRenderer->HandleMouseMove(x, y);
         }
     }
 
-    void MouseCB(int button, int state, int x, int y)
+    void MouseCB(int button, int action, int x, int y)
     {
-        // Get current window size
-        int currentWidth, currentHeight;
-        glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
-        
-        // Store raw coordinates but scale them to match camera's expected dimensions
-        mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
-        mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
-        
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
-            if (state == GLFW_PRESS) {
+            if (action == GLFW_PRESS) {
+                // Get current window size and scale coordinates
+                int currentWidth, currentHeight;
+                glfwGetWindowSize(window->getHandle(), &currentWidth, &currentHeight);
+                
+                // Scale coordinates to match camera's expected dimensions
+                mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
+                mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
+                
                 // Check UI first
                 if (m_uiRenderer && m_uiRenderer->HandleMouseClick(x, y)) {
                     return; // UI handled the click, don't process 3D interaction
                 }
+                    
+                camera->UpdateMousePos(x, y);
+                camera->StartRotation();
                 
-                // Only handle camera rotation if we're not in any terrain modification mode
-                if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
-                    camera->UpdateMousePos(x, y);
-                    camera->StartRotation();
-                }
-                
-                vec3 intersectionPoint;
-                if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                    if (isTexturePainting) {
+                // Handle texture painting
+                if (isTexturePainting) {
+                    vec3 intersectionPoint;
+                    if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
                         grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
                                         currentTextureLayer, brushRadius, brushStrength);
                     }
-                    if (isFlattening) {
-                        grid->Flatten(intersectionPoint.x, intersectionPoint.z, 
-                                    brushRadius, brushStrength);
-                    }
-                    if (isDigging) {
-                        std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z, 
-                                                brushRadius, brushStrength);
-                        lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
-                    }
-                    if (isRaising) {
-                        grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z, 
-                                        brushStrength, brushRadius, 1.0f);
-                    }
                 }
-            }
-        } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-            // Only handle camera rotation if we're not in any terrain modification mode
-            if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
-                if (state == GLFW_PRESS) {
-                    camera->StartRotation();
-                } else if (state == GLFW_RELEASE) {
-                    camera->StopRotation();
+                
+                // Only finalize object placement if there's an object in placement mode
+                if (gameObject && gameObject->isInPlacement) {
+                    gameObject->isInPlacement = false;
                 }
+            } else if (action == GLFW_RELEASE) {
+                camera->StopRotation();
             }
-        }
-        
-        // Only update camera if we're not in any terrain modification mode
-        if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
-            camera->OnMouse(x, y);
         }
     }
  
@@ -554,8 +427,7 @@ private:
     {
         window = std::make_unique<Window>(WINDOW_WIDTH, WINDOW_HEIGHT, "Unified Shader Demo");
     }
-   
-    
+
     void InitCallbacks()
     {
         glfwSetKeyCallback(window->getHandle(), KeyCallback);
@@ -820,39 +692,6 @@ private:
         }
     }
 
-    void CheckGLError(const std::string& location) {
-    GLenum error = glGetError();
-    if (error != GL_NO_ERROR) {
-        std::cerr << "OpenGL Error at " << location << ": " << std::hex << error << std::dec << std::endl;
-        // You can add more detailed error string mappings if you want, e.g.:
-        // if (error == GL_INVALID_ENUM) std::cerr << "GL_INVALID_ENUM" << std::endl;
-        // ... etc.
-    }
-}
-/*
-    void InitWater() {
-        // Initialize water program
-        waterProgram = std::make_shared<Shader>();
-        if (!waterProgram->loadFromFiles("shaders/water_vert.glsl", "shaders/water_frag.glsl")) {
-            std::cerr << "Failed to load water shaders" << std::endl;
-            return;
-        }
-
-        // Create water manager
-        waterManager = std::make_unique<WaterManager>(waterProgram, WINDOW_WIDTH, WINDOW_HEIGHT);
-        
-        // Add three water instances at different locations
-        // First water - near the center
-        waterManager->addWaterAt(vec3(400.0f, 100.0f, 800.0f), 150.0f);
-        CheckGLError("After first addWaterAt call in InitWater");
-
-        waterManager->addWaterAt(vec3(800.0f, 100.0f, 400.0f), 180.0f); // Your second instance
-        CheckGLError("After second addWaterAt call in InitWater");
-        
-        glEnable(GL_DEPTH_TEST);
-    }
-
- */
     // Member variables
     std::unique_ptr<Window> window;
     std::unique_ptr<Camera> camera;
@@ -868,9 +707,8 @@ private:
     std::vector<float> m_terrainTextureTransitionHeights;
     std::unique_ptr<UIRenderer> m_uiRenderer;
     std::shared_ptr<UIDropdownMenu> m_objectMenu, m_objectMenu2;
-    static const int MAX_SHADER_TEXTURE_LAYERS = 5;
+    static const int MAX_SHADER_TEXTURE_LAYERS = 4;
 };
-
 
 GridDemo* g_app = nullptr;
 
