@@ -18,4 +18,5 @@ private:
     std::vector<GameObject*> gameObjects;
 };
 
+
 #endif // GAME_OBJECT_MANAGER_H
