@@ -13,6 +13,9 @@
 #include "ObjectLoader/GameObjectManager.h"
 #include "Core/ShadowMap.h"
 #include "Core/AudioManager.h"
+#include "UI/UIRenderer.h"
+#include "UI/UIButton.h"
+#include "UI/UIDropdownMenu.h"
 
 #include <iostream>
 #include <memory>
@@ -73,6 +76,7 @@ public:
         InitGrid();
         InitObjects();
         InitLight();
+        InitUI(); // Initialize UI system
         m_celestialLightManager = std::make_unique<CelestialLightManager>(); // INITIALIZE LIGHT MANAGER
         
         // Initialize the Shadow Map
@@ -96,6 +100,20 @@ public:
             // Update the CelestialLightManager
             if (m_celestialLightManager) {
                 m_celestialLightManager->Update(deltaTime);
+            }
+            
+            // Update UI system (for animations)
+            if (m_uiRenderer) {
+                m_uiRenderer->Update(deltaTime);
+            }
+            
+            // Update dropdown menu animations
+            if (m_objectMenu) {
+                m_objectMenu->Update(deltaTime);
+            }
+
+            if (m_objectMenu2) {
+                m_objectMenu2->Update(deltaTime);
             }
             
             RenderScene();
@@ -246,6 +264,11 @@ public:
         }
 
         objectManager->RenderAll(*shader);
+        
+        // --- Render UI ---
+        if (m_uiRenderer) {
+            m_uiRenderer->RenderAll();
+        }
     }
 
     void KeyboardCB(int key, int action)
@@ -296,6 +319,12 @@ public:
     {
         mouseX = static_cast<double>(x);
         mouseY = static_cast<double>(y);
+        
+        // Handle UI mouse move
+        if (m_uiRenderer) {
+            m_uiRenderer->HandleMouseMove(x, y);
+        }
+        
         camera->OnMouse(x, y);
     }
 
@@ -303,6 +332,11 @@ public:
     {
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
             if (action == GLFW_PRESS) {
+                // Check UI first
+                if (m_uiRenderer && m_uiRenderer->HandleMouseClick(x, y)) {
+                    return; // UI handled the click, don't process 3D interaction
+                }
+                    
                 camera->UpdateMousePos(x, y);
                 camera->StartRotation();
                 // Only finalize object placement if there's an object in placement mode
@@ -405,6 +439,108 @@ private:
         }
         std::cout << "Shadow shader loaded successfully." << std::endl;
     }
+    
+    void InitUI()
+    {
+        m_uiRenderer = std::make_unique<UIRenderer>();
+        if (!m_uiRenderer->Init(WINDOW_WIDTH, WINDOW_HEIGHT)) {
+            std::cerr << "Failed to initialize UI renderer" << std::endl;
+            return;
+        }
+        
+        // Create main menu buttons in the left corner
+        auto menuButton = std::make_shared<UIButton>(20.0f, WINDOW_HEIGHT - 130.0f, 120.0f, 120.0f, "Objects");
+        menuButton->SetNormalColor(vec3(1.0f, 1.0f, 1.0f));  // White to show texture clearly
+        menuButton->SetHoverColor(vec3(1.2f, 1.2f, 1.2f));   // Slightly brighter on hover
+        menuButton->SetPressedColor(vec3(0.8f, 0.8f, 0.8f)); // Darker when pressed
+        menuButton->SetTexture("resources/icons/dice.png");  // Add icon texture
+
+        auto menuButton2 = std::make_shared<UIButton>(150.0f, WINDOW_HEIGHT - 130.0f, 120.0f, 120.0f, "Terrain");
+        menuButton2->SetNormalColor(vec3(1.0f, 1.0f, 1.0f));  // White to show texture clearly
+        menuButton2->SetHoverColor(vec3(1.2f, 1.2f, 1.2f));   // Slightly brighter on hover
+        menuButton2->SetPressedColor(vec3(0.8f, 0.8f, 0.8f)); // Darker when pressed
+        menuButton2->SetTexture("resources/icons/brush.png"); // Add grass texture
+        
+        // Create dropdown menus that appears from the top
+        m_objectMenu2 = std::make_shared<UIDropdownMenu>(150.0f, WINDOW_HEIGHT - 130.0f, 120.0f, 120.0f);
+        m_objectMenu2 -> SetUIRenderer(m_uiRenderer.get());
+        m_objectMenu = std::make_shared<UIDropdownMenu>(20.0f, WINDOW_HEIGHT - 130.0f, 120.0f, 120.0f);
+        m_objectMenu->SetUIRenderer(m_uiRenderer.get());
+
+            
+        m_objectMenu2->AddMenuItem("Rock", [this]() {
+            std::cout << "Painting Rock terrain..." << std::endl;
+            // You can add terrain modification logic here later
+        });
+        
+        m_objectMenu2->AddMenuItem("Grass", [this]() {
+            std::cout << "Painting Grass terrain..." << std::endl;
+            // You can add terrain modification logic here later
+        });
+        
+        m_objectMenu2->AddMenuItem("Dirt", [this]() {
+            std::cout << "Painting Dirt terrain..." << std::endl;
+            // You can add terrain modification logic here later
+        });
+        // Add menu items for different objects
+        m_objectMenu->AddMenuItem("Cat", [this]() {
+            std::cout << "Loading Cat..." << std::endl;
+            ObjectLoader* obj = new ObjectLoader(*shader);
+            obj->load("../Objects/Cat/cat.obj", {0});
+            int index = objectManager->CreateNewObject(*obj);
+            GameObject* newGameObject = objectManager->GetGameObject(index);
+            if (newGameObject) {
+                newGameObject->Scale(0.7f);
+                newGameObject->RotateX(-90.0f);
+                newGameObject->isInPlacement = true;
+                gameObject = newGameObject;
+            }
+        }, "resources/icons/cat.png");
+        
+        m_objectMenu->AddMenuItem("Tree", [this]() {
+            std::cout << "Loading Tree..." << std::endl;
+            ObjectLoader* obj = new ObjectLoader(*shader);
+            obj->load("../Objects/Tree/Tree1.obj", {0});
+            int index = objectManager->CreateNewObject(*obj);
+            GameObject* newGameObject = objectManager->GetGameObject(index);
+            if (newGameObject) {
+                newGameObject->Scale(10.0f);
+                newGameObject->isInPlacement = true;
+                gameObject = newGameObject;
+            }
+        }, "resources/icons/tree.png");
+        
+        m_objectMenu->AddMenuItem("Cottage", [this]() {
+            std::cout << "Loading Cottage..." << std::endl;
+            ObjectLoader* obj = new ObjectLoader(*shader);
+            obj->load("../Objects/Cottage/cottage_obj.obj");
+            int index = objectManager->CreateNewObject(*obj);
+            GameObject* newGameObject = objectManager->GetGameObject(index);
+            if (newGameObject) {
+                newGameObject->Scale(5.0f);
+                newGameObject->isInPlacement = true;
+                gameObject = newGameObject;
+            }
+        },"resources/icons/cottage.png");
+        
+        // Set button callback to toggle menu
+        menuButton->SetOnClickCallback([this]() {
+            std::cout << "Menu button clicked! Toggling dropdown..." << std::endl;
+            m_objectMenu->ToggleOpen();
+            std::cout << "Dropdown is now: " << (m_objectMenu->IsOpen() ? "OPEN" : "CLOSED") << std::endl;
+        });
+
+        menuButton2->SetOnClickCallback([this]() {
+            std::cout << "Menu button 2 clicked! Toggling dropdown..." << std::endl;
+            m_objectMenu2->ToggleOpen();
+            std::cout << "Dropdown 2 is now: " << (m_objectMenu2->IsOpen() ? "OPEN" : "CLOSED") << std::endl;
+        });
+        
+        m_uiRenderer->AddUIElement(menuButton);
+        m_uiRenderer->AddUIElement(menuButton2);
+        
+        std::cout << "UI system initialized with dropdown menu" << std::endl;
+    }
         
     void InitGrid()
     {
@@ -477,6 +613,8 @@ private:
 
     std::vector<std::shared_ptr<Texture>> m_terrainTextures;
     std::vector<float> m_terrainTextureTransitionHeights;
+    std::unique_ptr<UIRenderer> m_uiRenderer;
+    std::shared_ptr<UIDropdownMenu> m_objectMenu, m_objectMenu2;
     static const int MAX_SHADER_TEXTURE_LAYERS = 4;
 };
 
