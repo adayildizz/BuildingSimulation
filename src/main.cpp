@@ -229,7 +229,12 @@ public:
 
         // Bind shadow map texture to an available texture unit (e.g., 5)
         m_shadowMap->Read(GL_TEXTURE5);
-        shader->setUniform("shadowMap", 5); // Tell shader which unit has the shadow map
+        shader->setUniform("shadowMap", 5); 
+        
+        // Debug: Verify shadow map is bound correctly
+        GLint currentTexture;
+        glActiveTexture(GL_TEXTURE5);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture);
         
         // Light Uniforms (The 'light' object is now configured by CelestialLightManager)
         if (light && shader->isValid()) {
@@ -266,6 +271,11 @@ public:
 
         // --- Render Objects ---
         shader->setUniform("u_isTerrain", false);
+        
+        // Debug: Check if shadow map is still bound before rendering objects
+        glActiveTexture(GL_TEXTURE5);
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &currentTexture);
+
         
         // Use raycasting to position objects on terrain
         if (gameObject && gameObject->isInPlacement) {
@@ -701,7 +711,7 @@ private:
     std::vector<float> m_terrainTextureTransitionHeights;
     std::unique_ptr<UIRenderer> m_uiRenderer;
     std::shared_ptr<UIDropdownMenu> m_objectMenu, m_objectMenu2;
-    static const int MAX_SHADER_TEXTURE_LAYERS = 4;
+    static const int MAX_SHADER_TEXTURE_LAYERS = 5;
 };
 
 GridDemo* g_app = nullptr;
