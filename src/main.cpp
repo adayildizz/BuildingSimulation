@@ -12,7 +12,6 @@
 #include "Core/CelestialLightManager.h"
 #include "ObjectLoader/GameObjectManager.h"
 #include "Core/ShadowMap.h"
-#include "Core/AudioManager.h"
 #include "UI/UIRenderer.h"
 #include "UI/UIButton.h"
 #include "UI/UIDropdownMenu.h"
@@ -100,7 +99,7 @@ public:
             std::cerr << "Shadow Map initialization failed!" << std::endl;
             // Handle error appropriately
         }
-        AudioManager::getInstance().playMusic("../include/music.mp3");
+       
     }
 
     void Run()
