@@ -15,7 +15,7 @@ public:
     virtual ~TerrainGrid();
     
     // Init will now take parameters for the TerrainGenerator
-    virtual void Init(int width, int depth, float worldScale, float textureScale, 
+    virtual void Init(int width, int depth, float worldScale, float textureScale,
                      TerrainType terrainType = TerrainType::FLAT,
                      float genParam1 = 200.0f, // Generic parameter 1 for generator (e.g. max height)
                      float genParam2 = 0.2f,   // Generic parameter 2 for generator (e.g. radius ratio)
@@ -37,15 +37,29 @@ public:
     
     // Texture painting methods
     void PaintTexture(float worldX, float worldZ, int textureLayer, float brushRadius, float brushStrength);
+    
+    std::vector<std::pair<int, int>> Flatten(float worldX, float worldZ, float brushRadius, float brushStrength);
+   
+    std::vector<vec3> Dig(float worldX, float worldZ, float brushRadius, float brushStrength);
+    
+    void RaiseTerrain(float worldX, float worldZ, float height, float brushRadius, float brushStrength); // New function to raise terrain
+    void StoreInitHeightMap(); // Store initial heightmap for raising limits
+    void ResetFlatteningState(); // Reset the flattening state for new operations
     void UpdateMesh(); // Force mesh update after painting
     
 private:
     // Heightmap data
     std::vector<float> m_heightMap;
+    std::vector<float> m_initHeightMap;  // Store initial heightmap for raising limits
     TerrainType m_terrainType;
     TerrainLayerInfo m_layerInfo;
     float m_minHeight;
     float m_maxHeight;
+
+    // Flattening state
+    float m_flattenTargetHeight;
+    bool m_isFirstFlattenClick;
+    std::vector<std::pair<int, int>> m_lastFlattenedPoints;
 
     void CalculateMinMaxHeights(); // Helper to calculate and store min/max
     void NormalizeSplatWeights(int x, int z); // Helper to normalize weights after painting

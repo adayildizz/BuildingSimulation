@@ -33,6 +33,8 @@ vec3 intersectionPoint; // Store the last raycast intersection point
 float objectPosX = 500.0f;
 float ObjectPosY = 10.0f;
 float ObjectPosZ = 600.0f;
+std::vector<vec3> lastDugPoints;
+
 
 // Texture painting state
 bool isTexturePainting = false;
@@ -333,6 +335,38 @@ public:
                     brushRadius = std::max(brushRadius / 1.2f, 1.0f);
                     std::cout << "Brush radius: " << brushRadius << std::endl;
                     break;
+                case GLFW_KEY_L:
+                    // digging
+                    isDigging = !isDigging;
+                    isTexturePainting = false;  // Disable other modes
+                    isFlattening = false;       // Disable other modes
+                    isRaising = false;
+                    isInPlacement = false;
+                    std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_K:
+                    // raising
+                    isRaising = !isRaising;
+                    isTexturePainting = false;
+                    isFlattening = false;
+                    isDigging = false;
+                    isInPlacement = false;
+                    if (isRaising) {
+                        // Store initial heightmap when entering raising mode
+                        grid->StoreInitHeightMap();
+                    }
+                    
+                    std::cout << "Raising mode: " << (isRaising ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_F:
+                    // flatenning
+                    isFlattening = !isFlattening;
+                    isTexturePainting = false;
+                    isDigging = false;
+                    isRaising = false;
+                    isInPlacement = false;
+                    std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
+                    break;
                 case GLFW_KEY_N:{
                     //TODO:this should be in a thread or a process !!!!!
                     ObjectLoader* obj = new ObjectLoader(*shader);
@@ -381,13 +415,26 @@ public:
         mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
         // Update texture painting while dragging
-        if (isTexturePainting && glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-            vec3 intersectionPoint;
-            if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
-                                currentTextureLayer, brushRadius, brushStrength);
-            }
-        } else {
+        if ((isTexturePainting || isFlattening || isDigging || isRaising) &&
+                    glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+                    vec3 intersectionPoint;
+                    if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                        if (isTexturePainting) {
+                            grid->PaintTexture(intersectionPoint.x, intersectionPoint.z,
+                                            currentTextureLayer, brushRadius, brushStrength);
+                        } else if (isFlattening) {
+                            grid->Flatten(intersectionPoint.x, intersectionPoint.z,
+                                        brushRadius, brushStrength);
+                        } else if (isDigging) {
+                            std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z,
+                                                    brushRadius, brushStrength);
+                            lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
+                        } else if (isRaising) {
+                            grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z,
+                                            brushStrength, brushRadius, 1.0f);
+                        }
+                    }
+                } else {
             camera->OnMouse(x, y);
         }
 
@@ -414,18 +461,32 @@ public:
                     return; // UI handled the click, don't process 3D interaction
                 }
                     
-                camera->UpdateMousePos(x, y);
-                camera->StartRotation();
-                
-                // Handle texture painting
-                if (isTexturePainting) {
-                    vec3 intersectionPoint;
-                    if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                        grid->PaintTexture(intersectionPoint.x, intersectionPoint.z, 
-                                        currentTextureLayer, brushRadius, brushStrength);
-                    }
+                // Only handle camera rotation if we're not in any terrain modification mode
+                if (!isTexturePainting && !isFlattening && !isDigging && !isRaising) {
+                    camera->UpdateMousePos(x, y);
+                    camera->StartRotation();
                 }
                 
+                vec3 intersectionPoint;
+                if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                    if (isTexturePainting) {
+                        grid->PaintTexture(intersectionPoint.x, intersectionPoint.z,
+                                        currentTextureLayer, brushRadius, brushStrength);
+                    }
+                    if (isFlattening) {
+                        grid->Flatten(intersectionPoint.x, intersectionPoint.z,
+                                    brushRadius, brushStrength);
+                    }
+                    if (isDigging) {
+                        std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z,
+                                                brushRadius, brushStrength);
+                        lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
+                    }
+                    if (isRaising) {
+                        grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z,
+                                        brushStrength, brushRadius, 1.0f);
+                    }
+                }
                 // Only finalize object placement if there's an object in placement mode
                 if (gameObject && gameObject->isInPlacement) {
                     gameObject->isInPlacement = false;
@@ -712,6 +773,11 @@ private:
     std::unique_ptr<UIRenderer> m_uiRenderer;
     std::shared_ptr<UIDropdownMenu> m_objectMenu, m_objectMenu2;
     static const int MAX_SHADER_TEXTURE_LAYERS = 5;
+
+    bool isFlattening = false;
+    bool isDigging = false;
+    bool isRaising = false;
+    bool isInPlacement = false;
 };
 
 GridDemo* g_app = nullptr;
