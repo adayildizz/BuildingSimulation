@@ -36,12 +36,11 @@ void CelestialLightManager::CalculateCelestialProperties() {
     float celestialAngleRadians = m_timeOfDay;
 
     // Calculate the basic direction of the celestial body (sun/moon)
-    // This path makes it rise in +Y, move across X, and set. Z is a slight tilt.
     calculatedCelestialDirection.x = cos(celestialAngleRadians);
     calculatedCelestialDirection.y = sin(celestialAngleRadians);
-    calculatedCelestialDirection.z = 0.2f; // Adjust for desired celestial path tilt
+    calculatedCelestialDirection.z = 0.15f; // A small constant tilt is enough.
 
-    // Determine dayFactor: 0 for night (celestial body below horizon), 1 for full day (celestial body at zenith)
+
     float dayFactor = fmax(0.0f, calculatedCelestialDirection.y);
     
     // Interpolate sky color based on dayFactor

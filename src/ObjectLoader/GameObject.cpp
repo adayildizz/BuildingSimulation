@@ -1,4 +1,3 @@
-
 #include "GameObject.h"
 #include "Angel.h"
 
@@ -45,7 +44,7 @@ void GameObject::RotateZ(float deltaAngle){
 }
 void GameObject::RotateX(float deltaAngle){
     // Relative rotation - add to current angle
-        this->angleX += deltaAngle;
+    this->angleX += deltaAngle;
     UpdateModelMatrix();
 }
 
@@ -55,32 +54,28 @@ void GameObject::Rotate(float deltaAngle){
 }
 
 void GameObject::Scale(float scaleMultiplier){
-    // Relative scaling - multiply current scale
-    this->scale *= scaleMultiplier;
+    // This is applying a scale on top of the existing scale.
+    // To set an absolute scale, you would use `this->scale = scaleValue;`
+    this->scale = scaleMultiplier;
     UpdateModelMatrix();
 }
 
 void GameObject::UpdateModelMatrix(){
-    // Build transformation matrix in proper order: Translation * Rotation * Scale
-    // Standard rotation order is typically Z * Y * X (or X * Y * Z depending on convention)
-    // Using Z * Y * X order (roll * yaw * pitch)
     mat4 translation = Translate(position.x, position.y, position.z);
     mat4 rotationX = Angel::RotateX(angleX);
     mat4 rotationY = Angel::RotateY(angleY);
     mat4 rotationZ = Angel::RotateZ(angleZ);
     mat4 scaleMatrix = Angel::Scale(scale, scale, scale);
     
-    // Apply rotations in Z * Y * X order (this is a common convention)
     mat4 rotation = rotationZ * rotationY * rotationX;
     
     objectModelMatrix = translation * rotation * scaleMatrix;
 }
 
-void GameObject::Render(){
-    objectLoader->program.setUniform("gModelMatrix", objectModelMatrix);
-    objectLoader->render();
+void GameObject::Render(Shader& shader){
+    shader.setUniform("gModelMatrix", objectModelMatrix);
+    objectLoader->render(shader);
 }
-
 
 vec3 GameObject::GetBoundingBoxSize() const {
     return objectLoader->GetBoundingBoxSize() * scale;

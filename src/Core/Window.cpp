@@ -41,7 +41,7 @@ Window::Window(int width, int height, const std::string& title)
         glfwTerminate();
         exit(EXIT_FAILURE);
     }
-    
+    glfwGetFramebufferSize(m_window, &m_width, &m_height);    
     // Set callbacks
     glfwSetWindowUserPointer(m_window, this);
     glfwSetKeyCallback(m_window, keyCallback);
