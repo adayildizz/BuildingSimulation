@@ -14,6 +14,8 @@ public:
 
     void Bind(GLenum TextureUnit);
 
+    GLuint GetTextureObject() const { return m_textureObj; }
+
 private:
     std::string m_fileName;
     GLenum m_textureTarget;

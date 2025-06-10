@@ -35,10 +35,12 @@ public:
     void CreateMesh(int width, int depth, const BaseGrid* baseGrid);
     void Render();
     void UpdateVertexBuffer(); // Add method to update vertex buffer
+    void CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& vertices);
 
     // Access vertex data
     Vertex& GetVertex(int index) { return m_vertices[index]; }
     const Vertex& GetVertex(int index) const { return m_vertices[index]; }
+    std::vector<Vertex>& GetVertices() { return m_vertices; }
 
 private:
     // Initialize OpenGL state
@@ -49,7 +51,6 @@ private:
     
     // Initialize vertices (positions, texCoords) and then calculate normals
     void InitVertices(const BaseGrid* baseGrid, std::vector<Vertex>& vertices);
-    void CalculateNormals(const BaseGrid* baseGrid, std::vector<Vertex>& vertices);
     void InitIndices(std::vector<unsigned int>& indices);
     
     // Grid dimensions

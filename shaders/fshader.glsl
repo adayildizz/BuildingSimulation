@@ -2,14 +2,12 @@
 
 layout(location = 0) out vec4 FragColor;
 
-in vec4 baseColor;
-// World position from vertex shader// World-space normal from vertex shader
+in vec4 baseColor; // This 'in' is unused in main, but kept for compatibility with existing code
+in vec2 outTexCoord;      // Texture coordinates from vertex shader
+in vec3 outWorldPos;      // World position from vertex shader
+in vec3 outNormal_world;  // World-space normal from vertex shader
 in vec4 outSplatWeights1234; // First 4 splat weights from vertex shader
 in float outSplatWeight5;     // Fifth splat weight from vertex shader
-
-in vec2 outTexCoord;        // Texture coordinates from vertex shader
-in vec3 outWorldPos;        // World position from vertex shader
-in vec3 outNormal_world;    // World-space normal from vertex shader
 in vec4 outWorldPosLightSpace; // NEW: World position from the light's perspective
 
 // Texture samplers for terrain layers - now 5 textures
@@ -40,7 +38,7 @@ uniform float gHeight4; // New height threshold for snow
 struct DirectionalLight {
     vec3 color;
     float ambientIntensity;
-    vec3 direction;         // Direction *from which* light comes (WORLD SPACE)
+    vec3 direction;          // Direction *from which* light comes (WORLD SPACE)
     float diffuseIntensity;
 };
 uniform DirectionalLight directionalLight;
@@ -70,11 +68,11 @@ vec4 CalculateBlendedTextureColorFromWeights()
     
     // Blend using splat weights
     vec4 finalTexColor = tex0 * outSplatWeights1234.x +  // Sand
-                         tex1 * outSplatWeights1234.y +  // Grass
-                         tex2 * outSplatWeights1234.z +  // Dirt
-                         tex3 * outSplatWeights1234.w +  // Rock
-                         tex4 * outSplatWeight5;         // Snow
-                         
+                          tex1 * outSplatWeights1234.y +  // Grass
+                          tex2 * outSplatWeights1234.z +  // Dirt
+                          tex3 * outSplatWeights1234.w +  // Rock
+                          tex4 * outSplatWeight5;          // Snow
+                          
     return finalTexColor;
 }
 

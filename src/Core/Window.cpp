@@ -30,6 +30,16 @@ Window::Window(int width, int height, const std::string& title)
     
     // Make the window's context current
     glfwMakeContextCurrent(m_window);
+
+    // Initialize GLEW
+    glewExperimental = GL_TRUE;
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        std::cerr << "Failed to initialize GLEW: " << glewGetErrorString(err) << std::endl;
+        glfwDestroyWindow(m_window);
+        glfwTerminate();
+        exit(EXIT_FAILURE);
+    }
     glfwGetFramebufferSize(m_window, &m_width, &m_height);
 
     

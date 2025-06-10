@@ -5,7 +5,7 @@ bin/
 obj/
 
 # IDE specific files
-.vscode/*
+.vscode/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
@@ -57,3 +57,6 @@ cmakebackup.txt
 *.exe
 *.out
 *.app 
+
+/external
+/.vs
