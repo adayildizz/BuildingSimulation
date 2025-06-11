@@ -367,7 +367,27 @@ public:
                     isInPlacement = false;
                     std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
                     break;
-                
+                case GLFW_KEY_N:{
+                    //TODO:this should be in a thread or a process !!!!!
+                    ObjectLoader* obj = new ObjectLoader(*shader);
+                    obj->load("Objects/Cat/cat.obj", {0});
+                    int index = objectManager->CreateNewObject(*obj);
+                    gameObject = objectManager->GetGameObject(index);
+                    gameObject->Scale(0.7f);
+                    gameObject->RotateX(-90.0f);
+                    gameObject->isInPlacement = true; // Put new object in placement mode
+                    break;
+                };
+                case GLFW_KEY_T:{
+                    //TODO:this should be in a thread or a process !!!!!
+                    ObjectLoader* obj = new ObjectLoader(*shader);
+                    obj->load("Objects/Tree/Tree1.obj", {0});
+                    int index = objectManager->CreateNewObject(*obj);
+                    gameObject = objectManager->GetGameObject(index);
+                    gameObject->Scale(10.0f);
+                    gameObject->isInPlacement = true; // Put new object in placement mode
+                    break;
+                };
                 case GLFW_KEY_R:
                     gameObject->RotateY(15.0f);
                     break;
@@ -449,28 +469,22 @@ public:
                 
                 vec3 intersectionPoint;
                 if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                    // Reset timing for initial click
-                    lastTerrainModTime = glfwGetTime();
-                    
-                    // Use reduced strength for initial click to avoid harsh application
-                    float initialStrength = brushStrength * 0.3f;
-                    
                     if (isTexturePainting) {
                         grid->PaintTexture(intersectionPoint.x, intersectionPoint.z,
-                                        currentTextureLayer, brushRadius, initialStrength);
+                                        currentTextureLayer, brushRadius, brushStrength);
                     }
                     if (isFlattening) {
                         grid->Flatten(intersectionPoint.x, intersectionPoint.z,
-                                    brushRadius, initialStrength);
+                                    brushRadius, brushStrength);
                     }
                     if (isDigging) {
                         std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z,
-                                                brushRadius, initialStrength);
+                                                brushRadius, brushStrength);
                         lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
                     }
                     if (isRaising) {
                         grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z,
-                                        initialStrength, brushRadius, 1.0f);
+                                        brushStrength, brushRadius, 1.0f);
                     }
                 }
                 // Only finalize object placement if there's an object in placement mode
@@ -642,7 +656,7 @@ private:
             isFlattening = false;       // Disable other modes
             isRaising = false;
             isInPlacement = false;
-        },"resources/icons/dig.png");
+        },"resources/icons/dirt_ball.jpg");
         m_objectMenu2->AddMenuItem("Raise", [this]() {
             isRaising = !isRaising;
                     isTexturePainting = false;
@@ -653,7 +667,7 @@ private:
                         // Store initial heightmap when entering raising mode
                         grid->StoreInitHeightMap();
                     }
-        },"resources/icons/raise.png");
+        },"resources/icons/dirt_ball.jpg");
         m_objectMenu2->AddMenuItem("Flatten", [this]() {
             isFlattening = !isFlattening;
             isTexturePainting = false;  // Disable other modes
@@ -661,7 +675,7 @@ private:
             isRaising = false;
             isInPlacement = false;
             std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
-        },"resources/icons/flatten.png");
+        },"resources/icons/dirt_ball.jpg");
 
 
 
