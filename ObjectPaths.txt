@@ -4,3 +4,5 @@ Objects/Tree/Tree1.obj,{0},10.0f,0.0f,0.0f,0.0f,resources/icons/tree.png
 Objects/Cat/cat.obj,{},0.2f,-90.0f,0.0f,0.0f,resources/icons/cat.png
 Objects/Furnitures/Bench_LowRes.obj,{},0.1f,0.0f,0.0f,0.0f,resources/icons/bench.png
 Objects/Penguin/PenguinBaseMesh.obj,{},20.0f,0.0f,0.0f,0.0f,resources/icons/PenguinRender.png
+Objects/AustralianDog/Australian_Cattle_Dog.obj,{},0.5f,-90.0f,0.0f,0.0f,resources/icons/AustralianDog.png
+Objects/Bird/12248_Bird_v1_L2.obj,{},0.2f,-90.0f,0.0f,0.0f,resources/icons/Duck.png
