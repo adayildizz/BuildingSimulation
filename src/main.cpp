@@ -655,7 +655,7 @@ private:
             isFlattening = false;       // Disable other modes
             isRaising = false;
             isInPlacement = false;
-        },"resources/icons/dirt_ball.jpg");
+        },"resources/icons/dig.png");
         m_objectMenu2->AddMenuItem("Raise", [this]() {
             isRaising = !isRaising;
                     isTexturePainting = false;
@@ -666,7 +666,7 @@ private:
                         // Store initial heightmap when entering raising mode
                         grid->StoreInitHeightMap();
                     }
-        },"resources/icons/dirt_ball.jpg");
+        },"resources/icons/raise.png");
         m_objectMenu2->AddMenuItem("Flatten", [this]() {
             isFlattening = !isFlattening;
             isTexturePainting = false;  // Disable other modes
@@ -674,7 +674,7 @@ private:
             isRaising = false;
             isInPlacement = false;
             std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
-        },"resources/icons/dirt_ball.jpg");
+        },"resources/icons/flatten.png");
 
 
 
