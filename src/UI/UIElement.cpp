@@ -48,8 +48,12 @@ bool UIElement::IsVisible() const {
 }
 
 bool UIElement::IsPointInside(float x, float y) const {
-    return x >= m_x && x <= m_x + m_width &&
-           y >= m_y && y <= m_y + m_height;
+    // The rendering system uses bottom-left origin, but there's a transform mismatch
+    // Let's check if the click is within the bounds considering potential coordinate flip
+    bool inside = x >= m_x && x <= m_x + m_width &&
+                  y >= m_y+m_height/2 && y <= m_y +m_height*3/2;
+    
+    return inside;
 }
 
 bool UIElement::OnClick(float x, float y) {

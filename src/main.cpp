@@ -40,7 +40,7 @@ std::vector<vec3> lastDugPoints;
 bool isTexturePainting = false;
 int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
 float brushRadius = 15.0f;
-float brushStrength = 2.5f;
+float brushStrength = 1000.0f;  // Reduced from 250.0f for smoother painting
 
 // Terrain modification timing
 double lastTerrainModTime = 0.0;
@@ -397,27 +397,40 @@ public:
         mouseX = (static_cast<double>(x) * WINDOW_WIDTH) / currentWidth;
         mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
         
-        // Update texture painting while dragging
+        // Update texture painting while dragging with timing control
         if ((isTexturePainting || isFlattening || isDigging || isRaising) &&
                     glfwGetMouseButton(window->getHandle(), GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
-                    vec3 intersectionPoint;
-                    if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
-                        if (isTexturePainting) {
-                            grid->PaintTexture(intersectionPoint.x, intersectionPoint.z,
-                                            currentTextureLayer, brushRadius, brushStrength);
-                        } else if (isFlattening) {
-                            grid->Flatten(intersectionPoint.x, intersectionPoint.z,
-                                        brushRadius, brushStrength);
-                        } else if (isDigging) {
-                            std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z,
-                                                    brushRadius, brushStrength);
-                            lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
-                        } else if (isRaising) {
-                            grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z,
-                                            brushStrength, brushRadius, 1.0f);
-                        }
+                    
+            // Add timing control to prevent excessive calls
+            double currentTime = glfwGetTime();
+            const double paintInterval = 1.0 / 30.0; // Limit to 30 operations per second
+            
+            if (currentTime - lastTerrainModTime >= paintInterval) {
+                vec3 intersectionPoint;
+                if (camera->GetTerrainIntersection(mouseX, mouseY, grid.get(), intersectionPoint)) {
+                    // Calculate frame-rate independent strength
+                    float deltaTime = static_cast<float>(currentTime - lastTerrainModTime);
+                    float frameRateAdjustedStrength = brushStrength * deltaTime * 2.0f; // Adjust multiplier as needed
+                    
+                    if (isTexturePainting) {
+                        grid->PaintTexture(intersectionPoint.x, intersectionPoint.z,
+                                        currentTextureLayer, brushRadius, frameRateAdjustedStrength);
+                    } else if (isFlattening) {
+                        grid->Flatten(intersectionPoint.x, intersectionPoint.z,
+                                    brushRadius, frameRateAdjustedStrength);
+                    } else if (isDigging) {
+                        std::vector<vec3> newDugPoints = grid->Dig(intersectionPoint.x, intersectionPoint.z,
+                                                brushRadius, frameRateAdjustedStrength);
+                        lastDugPoints.insert(lastDugPoints.end(), newDugPoints.begin(), newDugPoints.end());
+                    } else if (isRaising) {
+                        grid->RaiseTerrain(intersectionPoint.x, intersectionPoint.z,
+                                        frameRateAdjustedStrength, brushRadius, 1.0f);
                     }
-                } else {
+                    
+                    lastTerrainModTime = currentTime;
+                }
+            }
+        } else {
             camera->OnMouse(x, y);
         }
 
@@ -634,7 +647,7 @@ private:
             currentTextureLayer = 1;
         },"resources/icons/dirt.jpg");
         m_objectMenu2->AddMenuItem("Sand", [this]() {
-            std::cout << "Painting Dirt terrain..." << std::endl;
+            std::cout << "Painting Sand terrain..." << std::endl;
             // You can add terrain modification logic here later
             isTexturePainting = true;
             currentTextureLayer = 4;
@@ -657,14 +670,7 @@ private:
                         grid->StoreInitHeightMap();
                     }
         },"resources/icons/raise.png");
-        m_objectMenu2->AddMenuItem("Flatten", [this]() {
-            isFlattening = !isFlattening;
-            isTexturePainting = false;  // Disable other modes
-            isDigging= false;       // Disable other modes
-            isRaising = false;
-            isInPlacement = false;
-            std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
-        },"resources/icons/flatten.png");
+       
 
 
 
@@ -685,6 +691,10 @@ private:
                     if (config.rotY != 0.0f) newGameObject->RotateY(config.rotY);
                     if (config.rotZ != 0.0f) newGameObject->RotateZ(config.rotZ);
                     newGameObject->isInPlacement = true;
+                    isDigging =false;
+                    isTexturePainting = false;  // Disable other modes
+                    isFlattening = false;       // Disable other modes
+                    isRaising = false;
                     gameObject = newGameObject;
                 }
                 isTexturePainting = false;

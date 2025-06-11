@@ -119,27 +119,41 @@ void UIRenderer::RemoveUIElement(std::shared_ptr<UIElement> element) {
 }
 
 bool UIRenderer::HandleMouseClick(int x, int y) {
-    // Use screen coordinates directly (no Y flip needed)
-    // UI elements are already positioned in screen space (Y=0 at top)
+    // Convert mouse coordinates to UI coordinates
+    // Mouse: (0,0) at top-left, UI: (0,0) at bottom-left  
+    float uiX = static_cast<float>(x);
+    float uiY = static_cast<float>(m_screenHeight - y);
+    
+    std::cout << "Mouse click: (" << x << ", " << y << ") -> UI: (" << uiX << ", " << uiY << ")" << std::endl;
     
     // Check all UI elements from front to back
     for (auto it = m_uiElements.rbegin(); it != m_uiElements.rend(); ++it) {
-        if ((*it)->IsVisible() && (*it)->OnClick(static_cast<float>(x), static_cast<float>(y))) {
-            return true; // Event consumed
+        if ((*it)->IsVisible()) {
+            float elemX, elemY, elemW, elemH;
+            (*it)->GetPosition(elemX, elemY);
+            (*it)->GetSize(elemW, elemH);
+            std::cout << "Checking element at (" << elemX << ", " << elemY << ") size (" << elemW << ", " << elemH << ")" << std::endl;
+            
+            if ((*it)->OnClick(uiX, uiY)) {
+                std::cout << "Element clicked!" << std::endl;
+                return true; // Event consumed
+            }
         }
     }
     return false; // Event not handled
 }
 
 bool UIRenderer::HandleMouseMove(int x, int y) {
-    // Convert screen coordinates to UI coordinates (flip Y)
-    float uiY = m_screenHeight - y;
+    // Convert mouse coordinates to UI coordinates
+    // Mouse: (0,0) at top-left, UI: (0,0) at bottom-left
+    float uiX = static_cast<float>(x);
+    float uiY = static_cast<float>(m_screenHeight - y);
     
     bool handled = false;
     
     // Handle regular UI elements
     for (auto& element : m_uiElements) {
-        if (element->IsVisible() && element->OnMouseMove(static_cast<float>(x), uiY)) {
+        if (element->IsVisible() && element->OnMouseMove(uiX, uiY)) {
             handled = true;
         }
     }
