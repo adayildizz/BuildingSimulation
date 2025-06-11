@@ -1,6 +1,7 @@
-
 Objects/Cottage/cottage_obj.obj,{},5.0f,0.0f,0.0f,0.0f,resources/icons/cottage.png
 Objects/Tree/Tree1.obj,{0},10.0f,0.0f,0.0f,0.0f,resources/icons/tree.png
 Objects/Cat/cat.obj,{},0.2f,-90.0f,0.0f,0.0f,resources/icons/cat.png
 Objects/Furnitures/Bench_LowRes.obj,{},0.1f,0.0f,0.0f,0.0f,resources/icons/bench.png
-Objects/Penguin/PenguinBaseMesh.obj,{},20.0f,0.0f,0.0f,0.0f,resources/icons/PenguinRender.png
+Objects/Penguin/PenguinBaseMesh.obj,{},2.0f,0.0f,0.0f,0.0f,resources/icons/PenguinRender.png
+Objects/LibertyStatue/LibertStatue.obj,{},200.0f,0.0f,0.0f,0.0f,resources/icons/liberty.png
+Objects/LibertyStatue/Australian_Cattle_Dog.obj,{},5.0f,0.0f,0.0f,0.0f,resources/icons/dog.png
