@@ -150,9 +150,16 @@ void TerrainGrid::PaintTexture(float worldX, float worldZ, int textureLayer, flo
             // Skip if outside brush radius
             if (distance > brushRadius) continue;
             
-            // Calculate falloff based on distance
-            float falloff = 1.0f - (distance / brushRadius);
-            float strength = brushStrength * falloff;
+            // Calculate falloff based on distance - use smooth falloff curve
+            float normalizedDistance = distance / brushRadius;
+            float falloff = 1.0f - normalizedDistance;
+            
+            // Apply smooth cubic falloff for more natural texture blending
+            falloff = falloff * falloff * (3.0f - 2.0f * falloff); // Smoothstep function
+            falloff = std::max(0.0f, std::min(1.0f, falloff));
+            
+            // Use reduced strength for smoother texture painting
+            float strength = brushStrength * falloff * 0.02f; // Reduced multiplier for smoother painting
             
             // Get current vertex
             int vertexIndex = z * m_width + x;
@@ -199,14 +206,21 @@ std::vector<std::pair<int, int>> TerrainGrid::Flatten(float worldX, float worldZ
             // Skip if outside brush radius
             if (distance > brushRadius) continue;
             
-            // Calculate falloff based on distance
-            float falloff = 1.0f - (distance / brushRadius);
+            // Calculate falloff based on distance - use smooth falloff curve
+            float normalizedDistance = distance / brushRadius;
+            float falloff = 1.0f - normalizedDistance;
+            
+            // Apply smooth cubic falloff for more natural blending
+            falloff = falloff * falloff * (3.0f - 2.0f * falloff); // Smoothstep function
+            falloff = std::max(0.0f, std::min(1.0f, falloff));
             
             // Get current height
             float currentHeight = GetHeight(x, z);
             
             // Calculate new height - interpolate between current height and target height based on falloff
-            float newHeight = currentHeight + (targetHeight - currentHeight) * falloff;
+            // Use reduced strength for smoother blending
+            float blendStrength = brushStrength * falloff * 0.1f; // Reduced multiplier for smoother application
+            float newHeight = currentHeight + (targetHeight - currentHeight) * blendStrength;
             
             // Update height in heightmap
             m_heightMap[z * m_width + x] = newHeight;
@@ -247,15 +261,20 @@ std::vector<vec3> TerrainGrid::Dig(float worldX, float worldZ, float brushRadius
             // Skip if outside brush radius
             if (distance > brushRadius) continue;
             
-            // Calculate falloff based on distance - using quadratic falloff for bowl shape
+            // Calculate falloff based on distance - use smooth falloff curve
             float normalizedDistance = distance / brushRadius;
-            float falloff = (1.0f - normalizedDistance * normalizedDistance);
+            float falloff = 1.0f - normalizedDistance;
+            
+            // Apply smooth cubic falloff for more natural bowl shape
+            falloff = falloff * falloff * (3.0f - 2.0f * falloff); // Smoothstep function
+            falloff = std::max(0.0f, std::min(1.0f, falloff));
             
             // Get current height
             float currentHeight = GetHeight(x, z);
             
             // Calculate new height - create bowl shape by lowering height more at center
-            float depth = brushStrength * falloff;
+            // Use reduced strength for smoother digging
+            float depth = brushStrength * falloff * 0.05f; // Reduced multiplier for smoother digging
             float newHeight = currentHeight - depth;
             
             // Update height in heightmap
@@ -351,15 +370,20 @@ void TerrainGrid::RaiseTerrain(float worldX, float worldZ, float height, float b
             // Skip if outside brush radius
             if (distance > brushRadius) continue;
             
-            // Calculate falloff based on distance - using quadratic falloff for bowl shape
+            // Calculate falloff based on distance - use smooth falloff curve
             float normalizedDistance = distance / brushRadius;
-            float falloff = (1.0f - normalizedDistance * normalizedDistance);
+            float falloff = 1.0f - normalizedDistance;
+            
+            // Apply smooth cubic falloff for more natural dome shape
+            falloff = falloff * falloff * (3.0f - 2.0f * falloff); // Smoothstep function
+            falloff = std::max(0.0f, std::min(1.0f, falloff));
             
             // Get current height
             float currentHeight = GetHeight(x, z);
             
             // Calculate new height - create dome shape by raising height more at center
-            float raiseAmount = (height) * falloff; // Reduced sensitivity by 70%
+            // Use reduced strength for smoother raising
+            float raiseAmount = height * falloff * 0.05f; // Reduced multiplier for smoother raising
             float newHeight = currentHeight + raiseAmount;
             
             // Clamp the new height to not exceed maxAllowedHeight
