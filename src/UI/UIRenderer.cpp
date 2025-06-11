@@ -89,8 +89,8 @@ void UIRenderer::RenderUIElement(UIElement* element) {
     UIButton* button = dynamic_cast<UIButton*>(element);
     if (button && button->HasTexture()) {
         m_uiShader->setUniform("u_hasTexture", true);
-        button->GetTexture()->Bind(GL_TEXTURE0);
-        m_uiShader->setUniform("u_texture", 0);
+        button->GetTexture()->Bind(GL_TEXTURE10);  // Use texture unit 6 to avoid conflicts
+        m_uiShader->setUniform("u_texture", 10);
     } else {
         m_uiShader->setUniform("u_hasTexture", false);
     }
@@ -99,6 +99,12 @@ void UIRenderer::RenderUIElement(UIElement* element) {
     glBindVertexArray(m_quadVAO);
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
+    
+    // Clean up texture state if we used a texture
+    if (button && button->HasTexture()) {
+        glActiveTexture(GL_TEXTURE10);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
 }
 
 void UIRenderer::AddUIElement(std::shared_ptr<UIElement> element) {

@@ -40,7 +40,9 @@ void ObjectLoader::createDefaultWhiteTexture() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture(GL_TEXTURE_2D, 0); // Unbind
+    glBindTexture(GL_TEXTURE_2D, 0); // Unbind after configuration
+    
+    std::cout << "Created default white texture with ID: " << defaultWhiteTextureID << std::endl;
 }
 
 bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned int>& specificMeshesToLoad) {
@@ -69,7 +71,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         std::vector<vec3> normals;
         std::vector<vec2> texCoords;
         std::vector<unsigned int> indices;
-        GLuint currentMeshTextureID = defaultWhiteTextureID;
+        GLuint currentMeshTextureID = 0; // Start with 0, will use defaultWhiteTextureID if no texture is loaded
 
         if (scene->HasMaterials() && mesh->mMaterialIndex >= 0) {
             aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
@@ -81,6 +83,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
                     modelDir = filename.substr(0, lastSlash + 1);
                 }
                 std::string fullTexPath = modelDir + texturePath.C_Str();
+                std::cout <<  "reading texture from" << fullTexPath << std::endl;
 
                 int texWidth, texHeight, texChannels;
                 unsigned char *data = stbi_load(fullTexPath.c_str(), &texWidth, &texHeight, &texChannels, 0);
@@ -96,6 +99,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                     stbi_image_free(data);
+                    glBindTexture(GL_TEXTURE_2D, 0); // Unbind from the current texture unit (likely GL_TEXTURE0)
                     currentMeshTextureID = textureID;
                 } else {
                     std::cerr << "Failed to load texture: " << fullTexPath << " - " << stbi_failure_reason() << std::endl;
@@ -159,6 +163,11 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
         vbos.push_back(vbo);
         ebos.push_back(ebo);
         indexCounts.push_back(indices.size());
+        
+        // Use defaultWhiteTextureID if no texture was loaded for this mesh
+        if (currentMeshTextureID == 0) {
+            currentMeshTextureID = defaultWhiteTextureID;
+        }
         meshTextureIDs.push_back(currentMeshTextureID);
     }
     
@@ -172,18 +181,36 @@ void ObjectLoader::render(Shader& program) {
         glUniform1i(isTerrainLoc, 0);
     }
     
+    // Save current active texture unit
+    GLint currentActiveTexture;
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &currentActiveTexture);
+    
+    // Activate texture unit 4 for object textures
+    glActiveTexture(GL_TEXTURE4);
+    
     for (size_t i = 0; i < vaos.size(); ++i) {
         GLint objectTexLoc = glGetUniformLocation(program.getProgramID(), "objectTexture");
         if (objectTexLoc != -1) {
-            glActiveTexture(GL_TEXTURE4);
-            glBindTexture(GL_TEXTURE_2D, meshTextureIDs[i]);
-            glUniform1i(objectTexLoc, 4);
+            GLuint textureToUseFromMeshVector = meshTextureIDs[i];
+            
+            // Bind the appropriate texture to unit 4
+            if (textureToUseFromMeshVector == 0) {
+                glBindTexture(GL_TEXTURE_2D, defaultWhiteTextureID);
+                //std::cout << "Mesh " << i << " USING defaultWhiteTextureID: " << defaultWhiteTextureID << std::endl;
+            } else {
+                glBindTexture(GL_TEXTURE_2D, textureToUseFromMeshVector);
+                //std::cout << "Mesh " << i << " USING loaded texture ID: " << textureToUseFromMeshVector << std::endl;
+            }
+            glUniform1i(objectTexLoc, 4); // Tell shader to use texture unit 4
         }
 
         glBindVertexArray(vaos[i]);
         glDrawElements(GL_TRIANGLES, indexCounts[i], GL_UNSIGNED_INT, 0);
     }
-    glBindVertexArray(0);
+    
+    // Restore previous active texture unit to avoid disrupting other systems
+    glActiveTexture(currentActiveTexture);
+    glBindVertexArray(0); // Unbind VAO
 }
 
 void ObjectLoader::calculateBoundingBox(const aiScene* scene, const std::vector<unsigned int>& meshesToLoadIndices) {
