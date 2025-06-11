@@ -119,6 +119,7 @@ void UIRenderer::RemoveUIElement(std::shared_ptr<UIElement> element) {
 }
 
 bool UIRenderer::HandleMouseClick(int x, int y) {
+    
     // Convert screen coordinates to UI coordinates (flip Y)
     float uiY = m_screenHeight - y;
     
@@ -134,7 +135,7 @@ bool UIRenderer::HandleMouseClick(int x, int y) {
 bool UIRenderer::HandleMouseMove(int x, int y) {
     // Convert screen coordinates to UI coordinates (flip Y)
     float uiY = m_screenHeight - y;
-    
+    std::cout << "x: "<<x << "y: "<<y<<std::endl;
     bool handled = false;
     
     // Handle regular UI elements
