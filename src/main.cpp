@@ -42,6 +42,9 @@ int currentTextureLayer = 0; // 0: sand, 1: grass, 2: dirt, 3: rock, 4: snow
 float brushRadius = 15.0f;
 float brushStrength = 2.5f;
 
+// Terrain modification timing
+double lastTerrainModTime = 0.0;
+
 // Constants
 const int WINDOW_WIDTH = 1920;
 const int WINDOW_HEIGHT = 1080;
@@ -437,7 +440,7 @@ public:
                 mouseY = (static_cast<double>(y) * WINDOW_HEIGHT) / currentHeight;
                 
                 // Check UI first
-                if (m_uiRenderer && m_uiRenderer->HandleMouseClick(mouseX, mouseY)) {
+                if (m_uiRenderer && m_uiRenderer->HandleMouseClick(x, y)) {
                     return; // UI handled the click, don't process 3D interaction
                 }
                     
