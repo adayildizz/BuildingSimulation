@@ -119,12 +119,12 @@ void UIRenderer::RemoveUIElement(std::shared_ptr<UIElement> element) {
 }
 
 bool UIRenderer::HandleMouseClick(int x, int y) {
-    // Convert screen coordinates to UI coordinates (flip Y)
-    float uiY = m_screenHeight - y;
+    // Use screen coordinates directly (no Y flip needed)
+    // UI elements are already positioned in screen space (Y=0 at top)
     
     // Check all UI elements from front to back
     for (auto it = m_uiElements.rbegin(); it != m_uiElements.rend(); ++it) {
-        if ((*it)->IsVisible() && (*it)->OnClick(static_cast<float>(x), uiY)) {
+        if ((*it)->IsVisible() && (*it)->OnClick(static_cast<float>(x), static_cast<float>(y))) {
             return true; // Event consumed
         }
     }
