@@ -113,7 +113,8 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
             positions.push_back(vec4(p.x, p.y, p.z,1.0f));
             aiVector3D n = mesh->HasNormals() ? mesh->mNormals[i] : aiVector3D(0, 1, 0);
             normals.push_back(vec3(n.x, n.y, n.z));
-            texCoords.push_back(mesh->HasTextureCoords(0) ? vec2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y) : vec2(0.0f, 0.0f));
+            texCoords.push_back(mesh->HasTextureCoords(0) ? vec2(mesh->mTextureCoords[0][i].x, 
+                mesh->mTextureCoords[0][i].y) : vec2(0.0f, 0.0f));
         }
 
         // Indices

@@ -13,7 +13,7 @@ GameObject::GameObject(ObjectLoader& objectLoader){
 }
 
 GameObject::~GameObject(){
-    // Destructor - objectLoader is not owned by GameObject, so don't delete it
+
 }
 
 vec4 GameObject::GetPosition(){
@@ -26,36 +26,35 @@ void GameObject::SetPosition(vec4 newPosition){
 }
 
 void GameObject::Move(vec4 deltaPosition){
-    // Relative movement - add to current position
+
     this->position += deltaPosition;
     UpdateModelMatrix();
 }
 
 void GameObject::RotateY(float deltaAngle){
-    // Relative rotation - add to current angle
+
     this->angleY += deltaAngle;
     UpdateModelMatrix();
 }
 
 void GameObject::RotateZ(float deltaAngle){
-    // Relative rotation - add to current angle
+
     this->angleZ += deltaAngle;
     UpdateModelMatrix();
 }
 void GameObject::RotateX(float deltaAngle){
-    // Relative rotation - add to current angle
+
     this->angleX += deltaAngle;
     UpdateModelMatrix();
 }
 
 void GameObject::Rotate(float deltaAngle){
-    // Default rotation around Y axis (most common for object placement)
+
     RotateY(deltaAngle);
 }
 
 void GameObject::Scale(float scaleMultiplier){
-    // This is applying a scale on top of the existing scale.
-    // To set an absolute scale, you would use `this->scale = scaleValue;`
+
     this->scale = scaleMultiplier;
     UpdateModelMatrix();
 }

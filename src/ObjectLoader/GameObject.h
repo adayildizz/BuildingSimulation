@@ -14,10 +14,10 @@ public:
     void RotateY(float angle);
     void RotateX(float angle);
     void RotateZ(float angle);
-    void Rotate(float angle); // Rotate around Y axis by default
+    void Rotate(float angle); /
     void Scale(float amount);
     vec4 GetPosition();
-    void Render(Shader& shader); // Modified to accept a shader
+    void Render(Shader& shader); 
     mat4 objectModelMatrix;
     bool isInPlacement;
     
