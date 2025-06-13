@@ -127,11 +127,8 @@ float CalculateShadowFactor()
     float currentDepth = projCoords.z;
 
     // Check if the current fragment is in shadow
-    // Add a bias to prevent "shadow acne"
     float bias = max(0.005 * (1.0 - dot(normalize(outNormal_world), normalize(directionalLight.direction))), 0.0005);
     
-    // If current depth is greater than the stored depth, it's in shadow
-    // The '1.0' at the end handles cases where the fragment is outside the shadow map's frustum
     float shadow = (projCoords.z > 1.0) ? 0.0 : (currentDepth - bias > closestDepth ? 1.0 : 0.0);
 
     return shadow;

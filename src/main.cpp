@@ -670,6 +670,15 @@ private:
                         grid->StoreInitHeightMap();
                     }
         },"resources/icons/raise.png");
+
+        m_objectMenu2->AddMenuItem("Flatten", [this]() {
+            isFlattening = !isFlattening;
+            isTexturePainting = false;
+            isDigging = false;
+            isRaising = false;
+            isInPlacement = false;
+            std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
+        },"resources/icons/flatten.png");
        
 
 

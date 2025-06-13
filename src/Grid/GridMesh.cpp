@@ -223,7 +223,7 @@ void GridMesh::Vertex::InitSplatWeights(const BaseGrid* baseGrid, int x, int z, 
         splatWeights[0] = 1.0f;
         return;
     }
-    
+    C
     // Calculate transition heights for 5 textures
     float transitionHeight1 = minHeight + heightRange * 0.20f; // sand -> grass
     float transitionHeight2 = minHeight + heightRange * 0.40f; // grass -> dirt

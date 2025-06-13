@@ -206,21 +206,14 @@ std::vector<std::pair<int, int>> TerrainGrid::Flatten(float worldX, float worldZ
             // Skip if outside brush radius
             if (distance > brushRadius) continue;
             
-            // Calculate falloff based on distance - use smooth falloff curve
-            float normalizedDistance = distance / brushRadius;
-            float falloff = 1.0f - normalizedDistance;
-            
-            // Apply smooth cubic falloff for more natural blending
-            falloff = falloff * falloff * (3.0f - 2.0f * falloff); // Smoothstep function
-            falloff = std::max(0.0f, std::min(1.0f, falloff));
+            // Calculate falloff based on distance
+            float falloff = 1.0f - (distance / brushRadius);
             
             // Get current height
             float currentHeight = GetHeight(x, z);
             
             // Calculate new height - interpolate between current height and target height based on falloff
-            // Use reduced strength for smoother blending
-            float blendStrength = brushStrength * falloff * 0.1f; // Reduced multiplier for smoother application
-            float newHeight = currentHeight + (targetHeight - currentHeight) * blendStrength;
+            float newHeight = currentHeight + (targetHeight - currentHeight) * falloff;
             
             // Update height in heightmap
             m_heightMap[z * m_width + x] = newHeight;
