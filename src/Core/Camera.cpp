@@ -494,15 +494,11 @@ vec3 Camera::ScreenToWorldRay(float screenX, float screenY) const
 bool Camera::RayTerrainIntersection(const vec3& rayOrigin, const vec3& rayDirection, 
                                    float minY, float maxY, vec3& intersectionPoint) const
 {
-    // Simple ray-plane intersection for Y-plane
-    // We'll check if the ray intersects with a horizontal plane at terrain level
-    
-    // If ray direction is horizontal (no Y component), no intersection with terrain
+  
     if (abs(rayDirection.y) < 0.001f) {
         return false;
     }
     
-    // Calculate intersection with a plane at average terrain height
     float averageTerrainHeight = (minY + maxY) / 2.0f;
     
     float t = (averageTerrainHeight - rayOrigin.y) / rayDirection.y;

@@ -99,7 +99,7 @@ bool ObjectLoader::load(const std::string& filename, const std::vector<unsigned 
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                     stbi_image_free(data);
-                    glBindTexture(GL_TEXTURE_2D, 0); // Unbind from the current texture unit (likely GL_TEXTURE0)
+                    glBindTexture(GL_TEXTURE_2D, 0);
                     currentMeshTextureID = textureID;
                 } else {
                     std::cerr << "Failed to load texture: " << fullTexPath << " - " << stbi_failure_reason() << std::endl;

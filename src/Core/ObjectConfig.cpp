@@ -6,7 +6,6 @@ std::vector<unsigned int> parseIntVector(const std::string& str) {
     if (str == "{}") {
         return result; // Empty vector
     }
-    
     // Remove braces and parse numbers
     std::string cleaned = str.substr(1, str.length() - 2); // Remove { and }
     if (!cleaned.empty()) {
@@ -19,7 +18,6 @@ std::vector<unsigned int> parseIntVector(const std::string& str) {
     return result;
 }
 
-// Function to extract display name from filepath
 std::string extractDisplayName(const std::string& filepath) {
     size_t lastSlash = filepath.find_last_of('/');
     if (lastSlash != std::string::npos) {
@@ -29,7 +27,6 @@ std::string extractDisplayName(const std::string& filepath) {
         if (lastDot != std::string::npos) {
             filename = filename.substr(0, lastDot);
         }
-        // Convert underscores to spaces and capitalize first letter
         for (char& c : filename) {
             if (c == '_') c = ' ';
         }
