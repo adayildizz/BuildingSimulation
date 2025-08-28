@@ -1,0 +1,10 @@
+^C:\USERS\YILDIZ\DESKTOP\SPRING25\COMP410\TERRAINDEMO\BUILD\CMAKEFILES\DD57C567C3F60DD17E5E1A4BCA2D4080\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo -BC:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo/build/TerrainDemo.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

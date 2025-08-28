@@ -1,59 +1,59 @@
-# Build directories
-build/
-out/
-bin/
-obj/
+# # Build directories
+# build/
+# out/
+# bin/
+# obj/
 
-# IDE specific files
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-*.swp
-*.swo
-*~
+# # IDE specific files
+# .vscode/*
+# !.vscode/settings.json
+# !.vscode/tasks.json
+# !.vscode/launch.json
+# !.vscode/extensions.json
+# *.swp
+# *.swo
+# *~
 
-# System files
-.DS_Store
-Thumbs.db
+# # System files
+# .DS_Store
+# Thumbs.db
 
-# Dependencies
-include/GLFW/
+# # Dependencies
+# include/GLFW/
 
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-*.cmake
-CMakeLists.txt
-cmakebackup.txt
-*.sh
+# # CMake generated files
+# CMakeFiles/
+# CMakeCache.txt
+# cmake_install.cmake
+# Makefile
+# *.cmake
+# CMakeLists.txt
+# cmakebackup.txt
+# *.sh
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-!Objects/*/*.obj
+# # Compiled Object files
+# *.slo
+# *.lo
+# *.o
+# *.obj
+# !Objects/*/*.obj
 
-# Precompiled Headers
-*.gch
-*.pch
+# # Precompiled Headers
+# *.gch
+# *.pch
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+# # Compiled Dynamic libraries
+# *.so
+# *.dylib
+# *.dll
 
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
+# # Compiled Static libraries
+# *.lai
+# *.la
+# *.a
+# *.lib
 
-# Executables
-*.exe
-*.out
-*.app 
+# # Executables
+# *.exe
+# *.out
+# *.app 

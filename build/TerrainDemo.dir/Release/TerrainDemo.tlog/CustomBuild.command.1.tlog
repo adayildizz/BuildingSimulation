@@ -1,0 +1,10 @@
+^C:\USERS\YILDIZ\DESKTOP\SPRING25\COMP410\TERRAINDEMO\CMAKELISTS.TXT
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo -BC:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo/build --check-stamp-file C:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo/build/CMakeFiles/generate.stamp
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
