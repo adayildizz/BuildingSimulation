@@ -12,7 +12,6 @@
 #include "Core/CelestialLightManager.h"
 #include "ObjectLoader/GameObjectManager.h"
 #include "Core/ShadowMap.h"
-#include "Core/AudioManager.h"
 #include "UI/UIRenderer.h"
 #include "UI/UIButton.h"
 #include "UI/UIDropdownMenu.h"
@@ -102,7 +101,7 @@ public:
             std::cerr << "Shadow Map initialization failed!" << std::endl;
             // Handle error appropriately
         }
-        AudioManager::getInstance().playMusic("../include/music.mp3");
+       
     }
 
     void Run()
@@ -338,29 +337,29 @@ public:
                     brushRadius = std::max(brushRadius / 1.2f, 1.0f);
                     std::cout << "Brush radius: " << brushRadius << std::endl;
                     break;
-                case GLFW_KEY_L:
-                    // digging
-                    isDigging = !isDigging;
-                    isTexturePainting = false;  // Disable other modes
-                    isFlattening = false;       // Disable other modes
-                    isRaising = false;
-                    isInPlacement = false;
-                    std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
-                    break;
-                case GLFW_KEY_K:
-                    // raising
-                    isRaising = !isRaising;
-                    isTexturePainting = false;
-                    isFlattening = false;
-                    isDigging = false;
-                    isInPlacement = false;
-                    if (isRaising) {
-                        // Store initial heightmap when entering raising mode
-                        grid->StoreInitHeightMap();
-                    }
+                // case GLFW_KEY_G:
+                //     // digging
+                //     isDigging = !isDigging;
+                //     isTexturePainting = false;  // Disable other modes
+                //     isFlattening = false;       // Disable other modes
+                //     isRaising = false;
+                //     isInPlacement = false;
+                //     std::cout << "Digging mode: " << (isDigging ? "ON" : "OFF") << std::endl;
+                //     break;
+                // case GLFW_KEY_H:
+                //     // raising
+                //     isRaising = !isRaising;
+                //     isTexturePainting = false;
+                //     isFlattening = false;
+                //     isDigging = false;
+                //     isInPlacement = false;
+                //     if (isRaising) {
+                //         // Store initial heightmap when entering raising mode
+                //         grid->StoreInitHeightMap();
+                //     }
                     
-                    std::cout << "Raising mode: " << (isRaising ? "ON" : "OFF") << std::endl;
-                    break;
+                    // std::cout << "Raising mode: " << (isRaising ? "ON" : "OFF") << std::endl;
+                    // break;
                 case GLFW_KEY_F:
                     // flatenning
                     isFlattening = !isFlattening;
@@ -373,6 +372,10 @@ public:
                         grid->ResetFlatteningState();
                     }
                     std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
+                    break;
+                case GLFW_KEY_G:
+                    std::cout << "Adding water" << std::endl;
+
                     break;
                 
                 case GLFW_KEY_R:
@@ -662,6 +665,7 @@ private:
             isFlattening = false;       // Disable other modes
             isRaising = false;
             isInPlacement = false;
+            
         },"resources/icons/dig.png");
         m_objectMenu2->AddMenuItem("Raise", [this]() {
             isRaising = !isRaising;

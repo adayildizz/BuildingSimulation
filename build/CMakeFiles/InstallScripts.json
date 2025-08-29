@@ -1,7 +1,7 @@
 {
 	"InstallScripts" : 
 	[
-		"C:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo/build/cmake_install.cmake"
+		"D:/BuildingSimulation/build/cmake_install.cmake"
 	],
 	"Parallel" : false
 }

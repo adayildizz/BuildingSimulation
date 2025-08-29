@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CustomBuild Include="C:\Users\yildiz\Desktop\spring25\comp410\TerrainDemo\build\CMakeFiles\dd57c567c3f60dd17e5e1a4bca2d4080\generate.stamp.rule">
+    <CustomBuild Include="D:\BuildingSimulation\build\CMakeFiles\51af55b16e70bdb03bbbfe90c67276f4\generate.stamp.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="CMake Rules">
-      <UniqueIdentifier>{2C019A81-D89D-3CCE-B43F-66B3CCAC5122}</UniqueIdentifier>
+      <UniqueIdentifier>{730CBD2F-3E8F-39F1-86E9-8800903BA442}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

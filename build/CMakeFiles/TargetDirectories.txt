@@ -1,3 +1,3 @@
-C:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo/build/CMakeFiles/TerrainDemo.dir
-C:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/yildiz/Desktop/spring25/comp410/TerrainDemo/build/CMakeFiles/ZERO_CHECK.dir
+D:/BuildingSimulation/build/CMakeFiles/BuildingSimulation.dir
+D:/BuildingSimulation/build/CMakeFiles/ALL_BUILD.dir
+D:/BuildingSimulation/build/CMakeFiles/ZERO_CHECK.dir
