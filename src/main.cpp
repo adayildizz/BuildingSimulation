@@ -368,6 +368,10 @@ public:
                     isDigging = false;
                     isRaising = false;
                     isInPlacement = false;
+                    if (isFlattening) {
+                        // Ensure flatten captures the first click's height in this session
+                        grid->ResetFlatteningState();
+                    }
                     std::cout << "Flattening mode: " << (isFlattening ? "ON" : "OFF") << std::endl;
                     break;
                 

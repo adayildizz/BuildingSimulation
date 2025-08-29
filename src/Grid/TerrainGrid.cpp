@@ -190,7 +190,14 @@ std::vector<std::pair<int, int>> TerrainGrid::Flatten(float worldX, float worldZ
     int radiusInGrid = static_cast<int>(brushRadius / m_worldScale);
     
     // Get the target height from the clicked point
-    float targetHeight = GetHeight(centerX, centerZ);
+      // On the first click after entering flatten mode, capture the target height
+    if (m_isFirstFlattenClick) {
+        m_flattenTargetHeight = GetHeight(centerX, centerZ);
+        m_isFirstFlattenClick = false;
+    }
+
+    // Use the persisted target height for all subsequent strokes in this session
+    float targetHeight = m_flattenTargetHeight;
     
     // Iterate over the brush area
     for (int z = centerZ - radiusInGrid; z <= centerZ + radiusInGrid; z++) {
