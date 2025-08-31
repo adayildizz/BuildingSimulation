@@ -51,11 +51,6 @@ Our project is a world builder game in which the player has a modifiable terrain
   - Lightweight UI with buttons and dropdown menus
   - Cascading dropdown animation
 
-- **Audio**
-
-  - Background music using SFML
-  - Streaming & looping support
-
 - **Raycasting**
   - Cursor-to-grid intersection for terrain manipulation & object placement
 
@@ -76,8 +71,6 @@ Our project is a world builder game in which the player has a modifiable terrain
 - Terrain manipulation (dig/flatten/paint)
 - Shadow mapping
 - Water reflections & refractions
-
-(_Add screenshots or GIFs here!_)
 
 ---
 
