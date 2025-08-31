@@ -23,7 +23,6 @@ include/GLFW/
 
 # CMake generated files
 CMakeFiles/
-CMakeCache.txt
 cmake_install.cmake
 Makefile
 *.cmake
